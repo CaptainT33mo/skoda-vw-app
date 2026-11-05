@@ -1,6 +1,6 @@
 # CarPulse privacy policy
 
-_Last updated: [DATE OF FIRST RELEASE]_ · Contact: [YOUR CONTACT EMAIL]
+_Last updated: 6 November 2026_ · Contact: playstore@vibhor.tech
 
 CarPulse is an open-source app that shows data from your own connected Skoda or Volkswagen car. It has no
 server of its own: we, the developers, never receive your data. This policy explains what the app handles on
