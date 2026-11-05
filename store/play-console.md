@@ -47,28 +47,30 @@ What the app actually does (see `PRIVACY.md`):
   searches/locations to Google Maps when the user taps.
 - Everything stored stays in app-private storage, is not backed up, and is deleted on uninstall / clear storage.
 
-Suggested declarations (conservative):
+Declarations (as submitted). The test for each box: does the app send it **off the phone**?
 
 | Section | Answer |
 |---|---|
 | Does your app collect or share any of the required user data types? | **Yes** |
 | Is all of the user data collected by your app encrypted in transit? | **Yes** (HTTPS everywhere) |
-| Do you provide a way for users to request that their data is deleted? | **Yes**: sign out removes sign-in tokens; uninstall or clearing app storage deletes everything the app stored. Data held by the carmaker is managed in their official app. |
+| Account creation methods | **My app does not allow users to create an account** (users sign in to the carmaker account they already have) |
+| Do you provide a way for users to request that their data is deleted? | **Yes**: sign out removes sign-in tokens; uninstall or clearing app storage deletes everything the app stored. |
 
-| Data type | Collected | Shared | Optional? | Purposes |
-|---|---|---|---|---|
-| Personal info → **Phone number** | Yes | No | Required | App functionality, Account management |
-| Personal info → **Name**, **Email address** | Yes | No | Required | App functionality (shown on the Owner screen) |
-| Location → **Approximate location** (the car's) | Yes | **Yes** (map tiles / geocoding) | Required | App functionality |
-| Location → **Precise location** (the car's parked spot) | Yes | No | Required | App functionality |
-| App info and performance | No | — | — | — |
-| Device or other IDs | No (the random device ID only registers with the carmaker's server for sign-in; declare it if you prefer to be cautious) | — | — | — |
+| Data type | Collected | Shared | Ephemeral | Required | Purposes |
+|---|---|---|---|---|---|
+| Location → **Approximate location** (the car's) | Yes | No | No | Required | App functionality |
+| Location → **Precise location** (the car's parked spot) | Yes | No | No | Required | App functionality |
+| Personal info → **Name**, **Email address** | Yes | No | No | Required | App functionality, Account management |
+| Personal info → **User IDs** (account and car identifiers) | Yes | No | No | Required | App functionality, Account management |
+| Personal info → **Phone number** | Yes | No | No | Required | App functionality, Account management |
+| Device or other IDs (random install ID) | Yes | No | No | Required | App functionality |
+| Everything else (address, financial, health, messages, photos, audio, files, calendar, contacts, app activity, web browsing, app info and performance) | No | — | — | — | — |
 
-Notes for the form:
-- "Collected" here means the app transmits it off the device as part of the sign-in and car-data flow. "Shared"
-  covers the map-tile and place-name lookups that include the car's location.
+Notes:
+- "Not shared": the map-tile and place-name lookups are service providers working for the app, which Play exempts
+  from sharing; sign-in data goes to the user's own carmaker account at the user's request.
+- The address is only typed in by the owner and never leaves the phone, so it isn't declared.
 - Data isn't used for advertising, analytics or personalisation.
-- Data is not processed ephemerally only (car data is cached on the phone).
 
 ## Permissions
 

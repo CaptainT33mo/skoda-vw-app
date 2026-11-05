@@ -63,6 +63,14 @@ excluded from backup, no carmaker logos or photos.
 - [ ] **Closed testing** with 12+ testers for 14 days (personal accounts).
 - [ ] Apply for production access, then release to **Production**.
 
+## 7. After release: crashes and usage (no SDK in the app)
+
+- [ ] **Quality → Android vitals → Crashes and ANRs**: crash clusters with full stack traces from Play installs
+      (readable as-is, since release builds aren't minified). Check them during the closed test.
+- [ ] **Statistics**: installs, uninstalls, active users and ratings.
+- CarPulse itself has no crash or analytics SDK (v1.0.0 decision). If Play's data isn't enough, add an
+  **opt-in** crash reporter later and update `PRIVACY.md`, the listing's "no analytics" wording and Data safety.
+
 ## Before going public, also
 
 - [ ] Confirm Volkswagen sign-in with a real VW account (still untested), or call VW support "beta" in the listing.
