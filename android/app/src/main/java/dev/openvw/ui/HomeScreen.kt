@@ -75,9 +75,8 @@ fun HomeScreen(onGo: (Screen) -> Unit, onOwner: () -> Unit, playKey: Int, onShow
   val v = Store.vehicle
 
   val t = remember { Animatable(0f) }
-  var replay by remember { mutableIntStateOf(0) }
   var mapMode by remember { mutableStateOf(MapMode.STREET) }
-  LaunchedEffect(playKey, replay) { onShown(); t.snapTo(0f); t.animateTo(1f, tween(2800, easing = LinearEasing)) }
+  LaunchedEffect(playKey) { onShown(); t.snapTo(0f); t.animateTo(1f, tween(2800, easing = LinearEasing)) }
   val tv by t.asState()
 
   val fuelK = easeOutPublic((tv - 0.2f) / 0.65f)
@@ -239,15 +238,6 @@ fun HomeScreen(onGo: (Screen) -> Unit, onOwner: () -> Unit, playKey: Int, onShow
           Spacer(Modifier.width(6.dp))
           Text("Live", style = TextStyle(color = Card, fontSize = 13.sp, fontWeight = FontWeight.SemiBold))
         }
-      }
-      Row(
-        Modifier.height(36.dp).clip(RoundedCornerShape(99.dp)).background(Card).border(1.dp, dev.openvw.theme.Hairline, RoundedCornerShape(99.dp))
-          .clickable { replay++ }.padding(horizontal = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-      ) {
-        VIcon(Ic.replay, size = 13.dp, color = Ink, stroke = 2.4f)
-        Spacer(Modifier.width(6.dp))
-        Text("Replay", style = TextStyle(color = Ink, fontSize = 13.sp, fontWeight = FontWeight.SemiBold))
       }
     } }
 

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 12+ launch splash: the app icon on the app's own background colour (light/dark with the system). -->
+    <style name="Theme.MyApplication" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/app_bg</item>
+        <item name="android:windowSplashScreenBackground">@color/app_bg</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">#FF121214</item>
+    </style>
+</resources>

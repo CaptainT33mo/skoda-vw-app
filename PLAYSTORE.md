@@ -58,4 +58,4 @@ the app rejected or removed.
 
 - [ ] Confirm Volkswagen sign-in with a real VW account (still untested), or label VW support as beta in the
       listing.
-- [ ] Publish the GitHub repo with README, LICENSE (keeps the OpenVW / OpenSkoda copyright lines) and NOTICE.md.
+- [ ] Publish the GitHub repo with README, LICENSE (keeps the OpenVW copyright line) and NOTICE.md.

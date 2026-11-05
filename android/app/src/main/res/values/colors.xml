@@ -6,4 +6,6 @@
     <color name="wp_muted">#444444</color>
     <color name="wp_chip">#1F2023</color>
     <color name="wp_on_chip">#FFFFFF</color>
+    <!-- app background (theme Bg): launch splash and window -->
+    <color name="app_bg">#F5F4F0</color>
 </resources>

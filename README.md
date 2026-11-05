@@ -7,8 +7,7 @@ data without ads, tracking, or a cluttered UI.
 > Unofficial and independent. Not made by, affiliated with, or endorsed by Škoda Auto, Volkswagen AG, or
 > Škoda Auto Volkswagen India. See [Disclaimer](#disclaimer).
 
-CarPulse is built on [**OpenVW**](https://github.com/biswatma/openvw) by biswatma and
-[**OpenSkoda**](https://github.com/darushah/openskoda) by darushah. See [Credits](#credits).
+CarPulse is built on [**OpenVW**](https://github.com/biswatma/openvw) by biswatma. See [Credits](#credits).
 
 ## Which cars
 
@@ -122,12 +121,9 @@ See [PLAYSTORE.md](PLAYSTORE.md).
 
 ## Credits
 
-CarPulse exists because of two MIT-licensed projects (details in [NOTICE.md](NOTICE.md)):
-
-- [**OpenVW**](https://github.com/biswatma/openvw) by **biswatma** — the original app, the reverse-engineered
-  API client, the live feed, cluster, trips, maps and widgets.
-- [**OpenSkoda**](https://github.com/darushah/openskoda) by **Darshit Shah (darushah)** and contributors — the
-  Skoda port, Skoda models, ownership details and OTP fixes.
+CarPulse is built on [**OpenVW**](https://github.com/biswatma/openvw) by **biswatma** (MIT): the original app,
+the reverse-engineered API client, the live feed, cluster, trips, maps and widgets. Details in
+[NOTICE.md](NOTICE.md).
 
 ## Disclaimer
 
@@ -139,4 +135,4 @@ with no warranty.
 
 ## License
 
-MIT — see [LICENSE](LICENSE). The OpenVW and OpenSkoda copyright notices are kept there.
+MIT — see [LICENSE](LICENSE). OpenVW's copyright notice is kept there.

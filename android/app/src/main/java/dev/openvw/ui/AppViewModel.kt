@@ -464,6 +464,27 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
   fun refreshTelematics() { if (feed?.connected != true) poll() }
 
+  /** Pull-to-refresh is spinning. */
+  var refreshing by mutableStateOf(false); private set
+
+  /**
+   * Pull-to-refresh: a full reload now (live values, trips, updates, parked spot, widgets), the live feed
+   * reconnected if it dropped, and an active Trips date search re-run.
+   */
+  fun pullRefresh() {
+    if (refreshing) return
+    refreshing = true
+    viewModelScope.launch {
+      try {
+        if (demo || phase != Phase.READY) { delay(500); return@launch } // nothing to fetch; just acknowledge the pull
+        widgetsDue = true
+        loadLock.withLock { runCatching { loadTelematics(full = true) } }
+        if (liveHolders.isNotEmpty() && feed?.connected != true) startLive()
+        Store.tripRange?.let { (a, b) -> searchTrips(a, b) }
+      } finally { refreshing = false }
+    }
+  }
+
   /** One-tap debug export: all raw metadata payloads + mapped app values (for field tracing). */
   fun exportProfileMetadata() {
     viewModelScope.launch {
@@ -586,7 +607,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val outDir = ctx.getExternalFilesDir(android.os.Environment.DIRECTORY_DOCUMENTS) ?: ctx.filesDir
         if (!outDir.exists()) outDir.mkdirs()
         val stamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
-        val out = File(outDir, "openskoda-profile-metadata-$stamp.json")
+        val out = File(outDir, "carpulse-profile-metadata-$stamp.json")
         out.writeText(payload.toString(2))
         message = "Metadata exported: ${out.absolutePath}"
       }.onFailure {

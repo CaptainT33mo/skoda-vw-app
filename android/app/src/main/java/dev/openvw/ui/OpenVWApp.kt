@@ -40,7 +40,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -71,8 +73,16 @@ fun OpenVWApp(vm: AppViewModel = dev.openvw.AppGraph.vm(LocalContext.current.app
 @Composable
 private fun LoadingScreen() {
   Column(Modifier.fillMaxSize().background(Bg), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center) {
-    Box(Modifier.size(64.dp).clip(RoundedCornerShape(32.dp)).border(2.dp, Ink, RoundedCornerShape(32.dp)), contentAlignment = Alignment.Center) {
-      Text("CP", style = TextStyle(color = Ink, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold))
+    // the app icon itself (same tile as the launcher icon), so the splash hands over without a jump
+    Box(
+      Modifier.size(84.dp).clip(RoundedCornerShape(24.dp)).background(Color(0xFF121214))
+        .border(1.dp, dev.openvw.theme.Line, RoundedCornerShape(24.dp)),
+      contentAlignment = Alignment.Center,
+    ) {
+      androidx.compose.foundation.Image(
+        androidx.compose.ui.res.painterResource(dev.openvw.R.drawable.ic_carpulse_mark), contentDescription = "CarPulse",
+        modifier = Modifier.size(52.dp),
+      )
     }
     Spacer(Modifier.height(20.dp))
     CircularProgressIndicator(color = Ink, strokeWidth = 2.dp)
@@ -145,41 +155,48 @@ private fun MainApp(vm: AppViewModel) {
           },
           label = "screen",
         ) { s ->
-          Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
-            // phones: full width; wide: Home two-column up to 1100dp, otherwise a 640–720dp centred column
-            Column(Modifier.widthIn(max = if (!wide) Dp.Infinity else if (s == Screen.HOME && twoCol) 1100.dp else if (s == Screen.HOME) 640.dp else 720.dp)) {
-              when (s) {
-                Screen.HOME -> HomeScreen(
-                  onGo = ::go,
-                  onOwner = { open(Screen.VEHICLE, VehicleTab.OWNER) },
-                  playKey = playKey,
-                  onShown = { vm.refreshTelematics() },
-                  wide = twoCol,
-                  onOpenTrip = ::openTrip,
-                  onSelectCar = { vm.selectCar(it) },
-                )
-                Screen.TRIPS -> TripsScreen(
-                  onBack = ::back, onOpenTrip = ::openTrip,
-                  onSearch = { a, b -> vm.searchTrips(a, b) },
-                  onClearSearch = { vm.clearTripSearch() },
-                )
-                Screen.LOCATE -> LocateScreen(onBack = ::back)
-                Screen.ALERTS -> AlertsScreen(onBack = ::back)
-                Screen.VEHICLE -> VehicleScreen(
-                  vehTab, onBack = ::back,
-                  privacy = dev.openvw.data.Store.privacy,
-                  onPrivacy = { vm.setPrivacy(it) },
-                  onLogout = { vm.logout() },
-                  onRegNo = { vm.setVehicleRegNoManual(it) },
-                  onOwner = { name, email, address -> vm.setOwnerDetails(name, email, address) },
-                  onPaint = { vm.setPaint(it) },
-                  onPrice = { vm.setFuelPrice(it) },
-                  onDark = { vm.setDark(it) },
-                  onAlerts = { vm.setAlertsOn(it) },
-                  onAlertType = { t, on -> vm.setAlertType(t, on) },
-                  onSystemTheme = { follow -> vm.setThemeMode(if (follow) "" else if (dev.openvw.data.Store.dark) "dark" else "light") },
-                )
-                Screen.TRIP_DETAIL -> TripDetailScreen(dev.openvw.data.Store.detailTrip, onBack = ::back)
+          // pull down to reload everything from the car (every main tab; the trip detail page is a fixed snapshot)
+          PullToRefreshBox(
+            isRefreshing = vm.refreshing && s != Screen.TRIP_DETAIL,
+            onRefresh = { if (s != Screen.TRIP_DETAIL) vm.pullRefresh() },
+            modifier = Modifier.fillMaxSize(),
+          ) {
+            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
+              // phones: full width; wide: Home two-column up to 1100dp, otherwise a 640–720dp centred column
+              Column(Modifier.widthIn(max = if (!wide) Dp.Infinity else if (s == Screen.HOME && twoCol) 1100.dp else if (s == Screen.HOME) 640.dp else 720.dp)) {
+                when (s) {
+                  Screen.HOME -> HomeScreen(
+                    onGo = ::go,
+                    onOwner = { open(Screen.VEHICLE, VehicleTab.OWNER) },
+                    playKey = playKey,
+                    onShown = { vm.refreshTelematics() },
+                    wide = twoCol,
+                    onOpenTrip = ::openTrip,
+                    onSelectCar = { vm.selectCar(it) },
+                  )
+                  Screen.TRIPS -> TripsScreen(
+                    onBack = ::back, onOpenTrip = ::openTrip,
+                    onSearch = { a, b -> vm.searchTrips(a, b) },
+                    onClearSearch = { vm.clearTripSearch() },
+                  )
+                  Screen.LOCATE -> LocateScreen(onBack = ::back)
+                  Screen.ALERTS -> AlertsScreen(onBack = ::back)
+                  Screen.VEHICLE -> VehicleScreen(
+                    vehTab, onBack = ::back,
+                    privacy = dev.openvw.data.Store.privacy,
+                    onPrivacy = { vm.setPrivacy(it) },
+                    onLogout = { vm.logout() },
+                    onRegNo = { vm.setVehicleRegNoManual(it) },
+                    onOwner = { name, email, address -> vm.setOwnerDetails(name, email, address) },
+                    onPaint = { vm.setPaint(it) },
+                    onPrice = { vm.setFuelPrice(it) },
+                    onDark = { vm.setDark(it) },
+                    onAlerts = { vm.setAlertsOn(it) },
+                    onAlertType = { t, on -> vm.setAlertType(t, on) },
+                    onSystemTheme = { follow -> vm.setThemeMode(if (follow) "" else if (dev.openvw.data.Store.dark) "dark" else "light") },
+                  )
+                  Screen.TRIP_DETAIL -> TripDetailScreen(dev.openvw.data.Store.detailTrip, onBack = ::back)
+                }
               }
             }
           }

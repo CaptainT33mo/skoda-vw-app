@@ -1,21 +1,15 @@
 # Credits
 
-CarPulse is built on two MIT-licensed open-source projects. Their code is the foundation of this app,
-and their copyright notices are kept in [LICENSE](LICENSE).
+CarPulse is built on **[OpenVW](https://github.com/biswatma/openvw)** by **biswatma**, an MIT-licensed
+open-source project. Its copyright notice is kept in [LICENSE](LICENSE).
 
-- **[OpenVW](https://github.com/biswatma/openvw)** by **biswatma** — the original app: reverse-engineered
-  My Volkswagen Connect Plus (India) API client, live SignalR telemetry feed, instrument cluster, trips and
-  driving stats, maps and widgets. CarPulse was forked from OpenVW v3.0
-  (commit `10dca6a`, 20 Oct 2026) by way of OpenSkoda.
-- **[OpenSkoda](https://github.com/darushah/openskoda)** by **Darshit Shah (darushah)** and contributors — the
-  Skoda Connect port of OpenVW: Skoda brand support, Skoda models, ownership/plan details, and the
-  v1.0.1 OTP fixes. CarPulse imports OpenSkoda's `fix/cerence-otp-login` work (Cerence OTP login, by
-  Vibhor Sharma) and the Android Auto support added on top of it.
-
-CarPulse merges both into one app that works with Volkswagen and Skoda cars in India.
-
-The car pictures bundled with OpenVW and OpenSkoda (carmaker-style renders of unknown licence) are **not** included;
-CarPulse draws its own car illustrations in code (`data/CarArt.kt`).
+- **OpenVW** is the original app: the reverse-engineered My Volkswagen Connect Plus (India) API client, the live
+  SignalR telemetry feed, the instrument cluster, trips and driving stats, maps and widgets. CarPulse was forked
+  from OpenVW v3.0 (commit `10dca6a`, 20 Oct 2026).
+- **CarPulse** adds Skoda support alongside Volkswagen in one app, the Cerence OTP sign-in, Android Auto, car
+  alerts, multiple cars per account, demo mode, App lock, and its own car illustrations drawn in code
+  (`data/CarArt.kt`). The car pictures bundled with OpenVW (carmaker-style renders of unknown licence) are
+  **not** included.
 
 ## Trademarks
 
