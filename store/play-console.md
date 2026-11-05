@@ -72,11 +72,24 @@ Notes:
 - The address is only typed in by the owner and never leaves the phone, so it isn't declared.
 - Data isn't used for advertising, analytics or personalisation.
 
+## Advertising ID
+
+**No**: the app doesn't use advertising ID. The release manifest has no `AD_ID` permission, and there are no Play
+Services, Firebase or ads libraries.
+
 ## Permissions
 
-No declarations needed. The app uses no location, SMS, call log, background location, exact alarms, foreground
-service or accessibility permissions. It asks at runtime for notifications (only when Car alerts are turned on),
-and for the car-sensor permissions inside Android Auto (optional).
+No sensitive-permission declarations are needed. The release manifest contains:
+
+- `INTERNET`, `ACCESS_NETWORK_STATE`: talking to the carmaker's servers.
+- `POST_NOTIFICATIONS`: Car alerts; asked at runtime only when the user turns alerts on.
+- `CAR_SPEED`, `CAR_FUEL`, `CAR_MILEAGE`: optional Android Auto car sensors, asked inside Android Auto.
+- `USE_BIOMETRIC`, `USE_FINGERPRINT`: App lock (added by the androidx.biometric library).
+- `WAKE_LOCK`, `RECEIVE_BOOT_COMPLETED`, `FOREGROUND_SERVICE`: added by WorkManager for the scheduled alert
+  check. The app runs **no foreground service** (the check never calls setForeground), so if Play asks about
+  foreground service types: none.
+
+No location, SMS, call log, contacts, background location or exact-alarm permissions.
 
 ## Android Auto (Advanced settings → Form factors)
 
