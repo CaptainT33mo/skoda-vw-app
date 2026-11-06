@@ -23,6 +23,7 @@ object Store {
   var events by mutableStateOf(emptyList<CarEvent>())
   var parked by mutableStateOf(Parked())
   val parkedKnown get() = parked.epoch > 0L   // false until a real telematics event sets the location
+  var trail by mutableStateOf(emptyList<GeoPt>())   // live positions of the current / last drive (Locate map)
   var plans by mutableStateOf(emptyList<PlanInfo>())
   var pendingDrive by mutableStateOf<Trip?>(null)  // last drive from engine on/off, until the full trip finalizes
   var detailTrip by mutableStateOf<Trip?>(null)    // trip shown on the detail page

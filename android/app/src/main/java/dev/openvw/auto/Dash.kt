@@ -102,7 +102,7 @@ internal data class Dash(
         rangeKm = huRange ?: s.rangeKm.takeIf { have && it > 0 },
         rangeMaxKm = rangeMax,
         coolantC = s.coolantC.takeIf { have && it > 0 },
-        batteryV = s.batteryV.takeIf { have },
+        batteryV = s.batteryV?.takeIf { have },
         engineLoadPct = null,
         intakeC = null,
         odometerKm = hu?.odometerKm ?: s.odometerKm.takeIf { have && it > 0 },

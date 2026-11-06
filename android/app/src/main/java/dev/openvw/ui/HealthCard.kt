@@ -35,9 +35,11 @@ import dev.openvw.theme.RedSoftBg
 @Composable
 fun HealthCard(t: Telemetry, modifier: Modifier = Modifier) {
   val ok = !t.milOn
+  val v = t.batteryV
   val battLabel = when {
-    t.batteryV >= 12.4 -> "Good" to GreenDark
-    t.batteryV >= 12.0 -> "Fair" to dev.openvw.theme.Amber
+    v == null -> null to Ink // not reported: no verdict
+    v >= 12.4 -> "Good" to GreenDark
+    v >= 12.0 -> "Fair" to dev.openvw.theme.Amber
     else -> "Weak" to Red
   }
   Column(modifier.card(24.dp).padding(18.dp)) {
@@ -69,7 +71,7 @@ fun HealthCard(t: Telemetry, modifier: Modifier = Modifier) {
 
     Spacer(Modifier.height(12.dp))
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-      Tile("Battery", "${trimV(t.batteryV)} V", battLabel.first, battLabel.second, Modifier.weight(1f))
+      Tile("Battery", "${v?.let(::trimV) ?: "--"} V", battLabel.first, battLabel.second, Modifier.weight(1f))
       Tile("Coolant", "${t.coolantC ?: "--"}°C", null, Ink, Modifier.weight(1f))
       Tile("Intake air", "${t.intakeC ?: "--"}°C", null, Ink, Modifier.weight(1f))
     }

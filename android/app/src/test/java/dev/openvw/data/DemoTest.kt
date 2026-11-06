@@ -32,6 +32,16 @@ class DemoTest {
     assertTrue(Store.parkedKnown)
   }
 
+  @Test fun demoShowsTheNewData() {
+    Demo.load(Brand.SKODA)
+    assertTrue(Store.trips.all { it.alarms != null && it.tags.isNotEmpty() && it.tags.first() == it.type })
+    assertTrue(Store.trips.any { it.alarms!!.size > 1 })
+    assertTrue(Store.trips.all { t -> (t.alarms!!.firstOrNull { it.first == "Sudden brake" }?.second ?: 0) == t.brakes })
+    assertTrue(Store.alertSetup.shapes.all { it.drawable } && Store.alertSetup.shapes.size == 2)
+    assertTrue(Store.trail.size > 2)
+    assertEquals(GeoPt(Store.parked.lat, Store.parked.lon), Store.trail.last()) // the trail ends at the car
+  }
+
   @Test fun driveStaysWithinCityLimits() {
     Demo.load(Brand.SKODA)
     repeat(200) { step ->
@@ -55,6 +65,7 @@ class DemoTest {
     assertFalse(Store.live)
     assertTrue(Store.trips.isEmpty())
     assertFalse(Store.parkedKnown)
+    assertTrue(Store.trail.isEmpty())
     assertEquals("", Store.vehicle.regNo)
   }
 }

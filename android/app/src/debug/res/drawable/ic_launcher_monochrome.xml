@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug builds only: themed (monochrome) icon — the pulse with "DEV" under it (a filled band would hide the letters). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:pathData="M30,50 L41,50 L46,38 L54,62 L61,30 L67,50 L78,50"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="5.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M41,71 L41,81 L44,81 Q48.5,81 48.5,76 Q48.5,71 44,71 Z M57.5,71 L52,71 L52,81 L57.5,81 M52,76 L56.5,76 M61,71 L64.5,81 L68,71"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

@@ -68,6 +68,18 @@ fun TripDetailScreen(trip: Trip?, onBack: () -> Unit) {
       }
       Spacer(Modifier.height(16.dp))
       TripRoute(trip.start, trip.end, trip.fromTitle, trip.fromSub, trip.toTitle, trip.toSub)
+      // the first tag is the chip above; any others
+      val more = trip.tags.drop(1)
+      if (!trip.pending && more.isNotEmpty()) {
+        Spacer(Modifier.height(14.dp))
+        androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+          more.forEach { tag ->
+            Box(Modifier.clip(RoundedCornerShape(99.dp)).background(Chip).border(1.dp, Border, RoundedCornerShape(99.dp)).padding(horizontal = 10.dp, vertical = 5.dp)) {
+              Text(tag, style = TextStyle(color = Ink, fontSize = 11.sp, fontWeight = FontWeight.Bold))
+            }
+          }
+        }
+      }
     }
 
     if (trip.pending) {
@@ -114,6 +126,22 @@ fun TripDetailScreen(trip: Trip?, onBack: () -> Unit) {
                 Spacer(Modifier.height(4.dp))
                 Text(v, style = TextStyle(color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Bold).merge(Tnum))
               }
+            }
+          }
+        }
+      }
+
+      // every driving alarm the car counted on this trip (not only hard brakes)
+      trip.alarms?.let { alarms ->
+        Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp).card(24.dp).padding(horizontal = 18.dp, vertical = 14.dp)) {
+          Text("DRIVING ALERTS", style = label())
+          Spacer(Modifier.height(6.dp))
+          if (alarms.isEmpty()) Text("None on this trip", style = TextStyle(color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Bold))
+          alarms.forEachIndexed { i, (name, count) ->
+            if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(LineSoft))
+            Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+              Text(name, style = TextStyle(color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Bold), modifier = Modifier.weight(1f))
+              Text("×$count", style = TextStyle(color = AmberDark, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold).merge(Tnum))
             }
           }
         }

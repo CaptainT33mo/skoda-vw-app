@@ -90,6 +90,12 @@ object Demo {
         avgSpeed = (km / (min / 60.0)).roundToInt(), startOdo = startOdo, endOdo = endOdo,
         startFuelPct = startFuel, endFuelPct = endFuel, brakes = i % 3,
         startLat = from.lat, startLon = from.lon, endLat = to.lat, endLon = to.lon,
+        alarms = listOfNotNull(
+          (i % 3).takeIf { it > 0 }?.let { "Sudden brake" to it },
+          if (i % 4 == 1) "Sharp turn" to 1 else null,
+          if (i % 5 == 2) "Over the speed limit" to 2 else null,
+        ).sortedByDescending { it.second },
+        tags = if (i % 6 == 4) listOf(p[7] as String, "Airport run") else listOf(p[7] as String),
       )
     }
     Store.trips = trips
@@ -105,7 +111,13 @@ object Demo {
     )
     Store.events = (listOf(CarEvent("demo-now", "engine", "Engine on", nowS - 420, places[1].lat, places[1].lon)) + events)
       .sortedByDescending { it.epoch }
-    Store.parked = Parked(places[1].lat, places[1].lon, nowS - 420, places[1].title, places[1].sub)
+    Store.parked = Parked(places[1].lat, places[1].lon, nowS - 420, places[1].title, places[1].sub, heading = 20)
+    // today's drive so far: Koramangala up to Indiranagar, with a little wiggle so it reads as roads
+    val a = places[2]; val b = places[1]
+    Store.trail = (0 until 24).map { k ->
+      val f = k / 24.0
+      GeoPt(a.lat + (b.lat - a.lat) * f + 0.0018 * sin(f * 3 * PI), a.lon + (b.lon - a.lon) * f + 0.0012 * sin(f * 5 * PI))
+    } + GeoPt(b.lat, b.lon) // ends exactly at the car
 
     val week = trips.filter { it.epoch > nowS - 7 * 86400 }
     Store.drive = DriveStats(
@@ -119,6 +131,10 @@ object Demo {
       fences = listOf("Home", "Office"),
       triggers = listOf("Engine on", "Overspeed", "Geofence exit"),
       triggerStates = mapOf("Engine on" to true, "Overspeed" to true, "Geofence exit" to false),
+      shapes = listOf(
+        Fence("Home", center = GeoPt(places[1].lat, places[1].lon), radiusM = 350.0),
+        Fence("Office", polygon = listOf(GeoPt(12.9790, 77.6010), GeoPt(12.9790, 77.6090), GeoPt(12.9722, 77.6090), GeoPt(12.9722, 77.6010))),
+      ),
     )
     Store.plans = emptyList()
     Store.connectedSince = "2024-03-12"

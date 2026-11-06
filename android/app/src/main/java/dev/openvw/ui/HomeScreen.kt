@@ -84,8 +84,8 @@ fun HomeScreen(onGo: (Screen) -> Unit, onOwner: () -> Unit, playKey: Int, onShow
   val battK = battReveal(tv)
   val battLo = 10.5; val battHi = 14.8
   val fuelText = (tele.fuelPct * fuelK).roundToInt().toString()
-  val battText = "%.1f".format(battLo + (tele.batteryV - battLo) * battK)
-  val battW = (((tele.batteryV - battLo) / (battHi - battLo)).coerceIn(0.0, 1.0) * battK).toFloat()
+  val battText = tele.batteryV?.let { "%.1f".format(battLo + (it - battLo) * battK) } ?: "--"
+  val battW = tele.batteryV?.let { (((it - battLo) / (battHi - battLo)).coerceIn(0.0, 1.0) * battK).toFloat() } ?: 0f
 
   // sections (arranged as one column on phones, two columns on wide screens)
   val header: @Composable () -> Unit = {

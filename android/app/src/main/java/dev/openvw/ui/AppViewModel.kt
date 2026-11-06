@@ -29,6 +29,10 @@ import dev.openvw.data.Telemetry
 import dev.openvw.data.VehicleInfo
 import dev.openvw.data.WidgetData
 import dev.openvw.data.WidgetSnapshot
+import dev.openvw.data.RawLog
+import dev.openvw.data.Telematics
+import dev.openvw.data.jsonPlain
+import dev.openvw.data.toPlain
 import dev.openvw.widget.OpenVWWidgets
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -68,6 +72,27 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
   // live push feed (SignalR) — runs only while the app is in the foreground
   private var feed: LiveFeed? = null
+  private var trailAt = 0L // epoch s of the newest point on Store.trail
+
+  /** Full-payload dumps: always in debug builds; in a Play build after `adb shell setprop log.tag.CarPulse VERBOSE`. */
+  private val debuggable by lazy {
+    (getApplication<Application>().applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+  }
+  private val dumpedShapes = java.util.concurrent.ConcurrentHashMap<String, Set<String>>()
+
+  /**
+   * Log a server payload, identifiers and coordinates masked (RawLog), the first time [label] is seen and again
+   * whenever its set of fields changes, so a drive's pushes log once instead of every few seconds.
+   * Read with: adb logcat -s CarPulse | grep raw
+   */
+  private fun dump(label: String, v: Any?) {
+    if (v == null || !(debuggable || Log.isLoggable(TAG, Log.VERBOSE))) return
+    val shape = RawLog.shape(v)
+    if (dumpedShapes[label] == shape) return
+    dumpedShapes[label] = shape
+    val parts = RawLog.render(RawLog.redact(v)).chunked(3500) // logcat truncates long lines
+    parts.forEachIndexed { i, part -> Log.d(TAG, "raw $label${if (parts.size > 1) " (${i + 1}/${parts.size})" else ""}: $part") }
+  }
   private var liveWanted = false
   private var liveJob: Job? = null
   private val liveHolders = mutableSetOf<String>() // who wants the live feed: phone UI, Android Auto
@@ -1400,6 +1425,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
   /** Car JSON (REST GET /car/{id} or a pushed "carStatus") -> Store. Missing fields keep their last value. */
   private suspend fun applyCar(t: JSONObject, live: Boolean) {
+    dump(if (live) "carStatus push" else "car", t.toPlain())
     val tj = t.optJSONObject("telemetry")
       ?: t.optJSONObject("carStatus")?.optJSONObject("telemetry")
       ?: t.optJSONObject("data")?.optJSONObject("telemetry")
@@ -1553,18 +1579,22 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
       Store.dongle = Dongle(d.optInt("netSignal"), d.optString("status"), d.optJSONObject("firmware")?.optString("version") ?: "")
     }
     // pushes carry the live position: follow the car on the maps
-    if (live) t.optJSONObject("location")?.let { l ->
-      val lat = l.optDouble("latitude", 0.0); val lon = l.optDouble("longitude", 0.0)
-      if (lat != 0.0 && lon != 0.0) {
-        val ts = l.optLong("timestamp").takeIf { it > 0 } ?: t.optLong("timestamp").takeIf { it > 0 } ?: (System.currentTimeMillis() / 1000)
-        Store.parked = Store.parked.copy(lat = lat, lon = lon, epoch = ts)
-        renamePlace(lat, lon)
+    // ... and draw the drive as it happens (Locate map), with the direction of travel when the car sends one
+    if (live) t.optJSONObject("location")?.toPlain()?.let { l ->
+      Telematics.point(l)?.let { pt ->
+        val raw = Telematics.num(l["timestamp"])?.toLong()?.takeIf { it > 0 } ?: t.optLong("timestamp").takeIf { it > 0 } ?: (System.currentTimeMillis() / 1000)
+        val ts = if (raw > 1_000_000_000_000L) raw / 1000 else raw
+        Store.parked = Store.parked.copy(lat = pt.lat, lon = pt.lon, epoch = ts, heading = Telematics.heading(l))
+        Store.trail = Telematics.extendTrail(Store.trail, pt, if (trailAt > 0) ts - trailAt else 0)
+        trailAt = ts
+        renamePlace(pt.lat, pt.lon)
       }
     }
     Log.d(TAG, "telemetry (${if (live) "push" else "rest"}): status=${Store.vehicle.status} engine=${carStatus ?: "?"} " +
       "fuel=${Store.telemetry.fuelPct}% speed=${Store.telemetry.speedKmh} odo=${Store.telemetry.odometerKm} " +
       "location=${if (t.optJSONObject("location") != null) "yes" else "no"} " +
-      "reportedAt=${tj.optLong("timestamp").takeIf { it > 0 }?.let { Date(if (it > 1_000_000_000_000L) it else it * 1000) } ?: "?"} keys=${tj.keys().asSequence().take(25).toList()}")
+      "reportedAt=${tj.optLong("timestamp").takeIf { it > 0 }?.let { Date(if (it > 1_000_000_000_000L) it else it * 1000) } ?: "?"} " +
+      "trail=${Store.trail.size} heading=${Store.parked.heading ?: "-"} keys=${tj.keys().asSequence().toList()}")
     tj.optLong("timestamp").takeIf { it > 0 }?.let { Store.reportedAt = if (it > 1_000_000_000_000L) it else it * 1000 }
     Store.updatedAt = System.currentTimeMillis()
     Store.live = true
@@ -1581,6 +1611,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
   /** Pushed "events" message (engine on/off, alarms) -> top of Updates. */
   private fun applyEvent(e: JSONObject) {
+    dump("event push ${e.optString("type")}", e.toPlain())
     val (kind, title, detail) = eventText(e) ?: return
     val p = Store.parked
     val loc = e.optJSONObject("location")
@@ -1593,6 +1624,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
       val on = title == "Engine on"
       Store.telemetry = Store.telemetry.copy(engineOn = on)
       Store.vehicle = Store.vehicle.copy(status = if (on) "Driving" else "Parked")
+      if (on) {
+        // a new drive: start its trail where the engine came on
+        Store.trail = listOfNotNull(Telematics.point(loc?.toPlain())); trailAt = if (Store.trail.isEmpty()) 0L else ev.epoch
+      } else Store.parked = Store.parked.copy(heading = null)
       // a finished drive becomes a trip on the server shortly after engine off: reload trips then
       if (!on) viewModelScope.launch { delay(90_000); lastFull = 0L; poll() }
     }
@@ -1606,6 +1641,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- trips ----
     Api.trips(session.carId, session.teleToken).optJSONArray("trips")?.takeIf { it.length() > 0 }?.let { arr ->
+      dump("trip", arr.optJSONObject(0)?.toPlain())
+      val alarmKeys = sortedSetOf<String>(); val tagSet = sortedSetOf<String>()
+      for (i in 0 until arr.length()) arr.optJSONObject(i)?.let { tr ->
+        tr.optJSONObject("eventCount")?.keys()?.forEach { alarmKeys += it }
+        tagSet += Telematics.tags(jsonPlain(tr.opt("tags")))
+      }
+      Log.d(TAG, "trips: ${arr.length()} trip(s), eventCount keys=$alarmKeys tags=$tagSet")
       var count = 0; var scoreSum = 0; var maxSp = 0; var idle = 0; var brakes = 0; var sumKm = 0.0; var sumFuelL = 0.0
       var totKm = 0.0; var totMin = 0; var wTrips = 0; var wKm = 0.0; var wMin = 0
       val list = ArrayList<Trip>()
@@ -1642,6 +1684,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
       val list = ArrayList<CarEvent>()
       for (i in 0 until arr.length()) {
         val e = arr.optJSONObject(i) ?: continue
+        dump("event ${e.optString("type")}", e.toPlain())
         val loc = e.optJSONObject("location")
         val (kind, title, detail) = eventText(e) ?: continue
         list += CarEvent(e.optString("id"), kind, title, e.optLong("timestamp"), loc?.optDouble("latitude") ?: 0.0, loc?.optDouble("longitude") ?: 0.0, detail)
@@ -1664,7 +1707,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     // ---- alert policies (geofences + enabled triggers) ----
     runCatching {
       val p = Api.policies(session.carId, session.teleToken)
+      dump("policies", p.toPlain())
       val fences = p.optJSONArray("fences")?.let { a -> (0 until a.length()).map { a.optJSONObject(it)?.optString("name")?.ifEmpty { null } ?: "Geofence ${it + 1}" } } ?: emptyList()
+      val shapes = p.optJSONArray("fences")?.let { a -> (0 until a.length()).mapNotNull { i -> a.optJSONObject(i)?.let { Telematics.fence(it.toPlain(), i) } } } ?: emptyList()
+      Log.d(TAG, "policies: ${fences.size} geofence(s), ${shapes.count { it.drawable }} with a shape we can draw")
       val states = linkedMapOf<String, Boolean>()
       p.optJSONObject("firebaseNotificationTrigger")?.let { o ->
         val it = o.keys()
@@ -1675,7 +1721,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
       }
       val trig = states.filterValues { it }.keys.sortedBy { it.lowercase(Locale.ENGLISH) }
       val sortedStates = states.entries.sortedBy { it.key.lowercase(Locale.ENGLISH) }.associate { it.toPair() }
-      Store.alertSetup = AlertSetup(fences, trig, sortedStates)
+      Store.alertSetup = AlertSetup(fences, trig, sortedStates, shapes.filter { it.drawable })
     }
 
     runCatching { recomputePending() }
@@ -1718,10 +1764,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
       else Places.cached(ctx, lat, lon) ?: (Places.coords(lat, lon) to "")
     }
     val (fT, fS) = place(sl); val (tT, tS) = place(el)
+    val tags = Telematics.tags(jsonPlain(tr.opt("tags")))
     return Trip(
       id = tr.optString("id"), start = clock(st), end = clock(et),
       fromTitle = fT, fromSub = fS, toTitle = tT, toSub = tS,
-      durMin = min, type = tr.optJSONArray("tags")?.optString(0)?.ifEmpty { null } ?: "Personal",
+      durMin = min, type = tags.firstOrNull() ?: "Personal", tags = tags,
+      // the server leaves eventCount out of trips that had no alarms (seen on a real Slavia), so absent = none
+      alarms = Telematics.alarms(tr.optJSONObject("eventCount")?.toPlain() ?: emptyMap()),
       date = day(st), km = km, score = tr.optInt("driverScore"), epoch = st, endEpoch = et,
       drivingMin = tr.optInt("drivingTime"), idleMin = tr.optInt("idleTime"), haltMin = tr.optInt("haltTime"),
       maxSpeed = tr.optInt("maxSpeed"), avgSpeed = tr.optInt("speed"),

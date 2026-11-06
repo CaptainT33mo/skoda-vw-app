@@ -36,6 +36,12 @@ import org.osmdroid.util.MapTileIndex
 import org.osmdroid.views.CustomZoomButtonsController
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
+import org.osmdroid.views.overlay.Overlay
+import org.osmdroid.views.overlay.Polygon
+import org.osmdroid.views.overlay.Polyline
+import androidx.compose.ui.graphics.toArgb
+import dev.openvw.data.Fence
+import dev.openvw.data.GeoPt
 import org.osmdroid.views.overlay.TilesOverlay
 
 enum class MapMode { STREET, SATELLITE, HYBRID }
@@ -67,6 +73,8 @@ fun OsmMap(
   showMarker: Boolean = true,
   mode: MapMode = MapMode.STREET,
   onMarkerClick: (() -> Unit)? = null,
+  trail: List<GeoPt> = emptyList(),   // the current drive, drawn as a line
+  fences: List<Fence> = emptyList(),  // geofences, drawn as shaded areas
 ) {
   val ctx = LocalContext.current
   val onTap by rememberUpdatedState(onMarkerClick)
@@ -83,6 +91,7 @@ fun OsmMap(
       setMultiTouchControls(interactive)
       zoomController.setVisibility(CustomZoomButtonsController.Visibility.NEVER) // custom +/− below
       controller.setZoom(zoom)
+      tag = zoom
       controller.setCenter(GeoPoint(lat, lon))
       if (showMarker) overlays.add(Marker(this).apply {
         position = GeoPoint(lat, lon)
@@ -95,6 +104,9 @@ fun OsmMap(
       if (!interactive) setOnTouchListener { v, _ -> v.performClick(); true }
     }
   }
+  val shapes = remember { mutableListOf<Overlay>() }        // trail + fence overlays on the map now
+  val shapesFor = remember { arrayOfNulls<Any>(1) }          // the (trail, fences) they were drawn from
+  val accent = dev.openvw.theme.Accent.toArgb()
   DisposableEffect(Unit) {
     map.onResume()
     onDispose { map.onPause() }
@@ -109,6 +121,33 @@ fun OsmMap(
     val hasLabels = mv.overlays.contains(labels)
     if (mode == MapMode.HYBRID && !hasLabels) mv.overlays.add(0, labels)
     else if (mode != MapMode.HYBRID && hasLabels) mv.overlays.remove(labels)
+    // the zoom changes when the location goes from unknown (world view) to known
+    if (mv.tag != zoom) { mv.controller.setZoom(zoom); mv.tag = zoom }
+    val key = trail to fences
+    if (shapesFor[0] != key) {
+      shapesFor[0] = key
+      mv.overlays.removeAll(shapes); shapes.clear()
+      fences.filter { it.drawable }.forEach { f ->
+        shapes += Polygon().apply {
+          points = if (f.polygon.size >= 3) f.polygon.map { GeoPoint(it.lat, it.lon) }
+                   else Polygon.pointsAsCircle(GeoPoint(f.center!!.lat, f.center.lon), f.radiusM)
+          fillPaint.color = 0x262F80ED
+          outlinePaint.color = 0xCC2F80ED.toInt()
+          outlinePaint.strokeWidth = 2.5f * ctx.resources.displayMetrics.density
+          title = f.name
+        }
+      }
+      if (trail.size >= 2) shapes += Polyline().apply {
+        setPoints(trail.map { GeoPoint(it.lat, it.lon) })
+        outlinePaint.color = accent
+        outlinePaint.strokeWidth = 4f * ctx.resources.displayMetrics.density
+        outlinePaint.strokeCap = android.graphics.Paint.Cap.ROUND
+        outlinePaint.strokeJoin = android.graphics.Paint.Join.ROUND
+      }
+      // under the car pin
+      val at = mv.overlays.indexOfFirst { it is Marker }.let { if (it < 0) mv.overlays.size else it }
+      mv.overlays.addAll(at, shapes)
+    }
     val pt = GeoPoint(lat, lon)
     mv.controller.setCenter(pt)
     mv.overlays.filterIsInstance<Marker>().forEach { it.position = pt }

@@ -138,8 +138,8 @@ object WidgetRender {
     var y = maxOf(card.top + 30f * u, card.centerY() - blockH / 2 + 11f * u)
     y = bar(c, u, rx, rRight, y, "Fuel", "${s.fuelPct}%", s.fuelPct / 100f, fc)
     y += 14f * u
-    val battFrac = ((s.batteryV - 10.5) / (14.8 - 10.5)).toFloat().coerceIn(0f, 1f)
-    y = bar(c, u, rx, rRight, y, "Battery", "${trim(s.batteryV)} V", battFrac, GREEN)
+    val battFrac = s.batteryV?.let { ((it - 10.5) / (14.8 - 10.5)).toFloat().coerceIn(0f, 1f) } ?: 0f
+    y = bar(c, u, rx, rRight, y, "Battery", "${s.batteryV?.let(::trim) ?: "--"} V", battFrac, GREEN)
     y += 16f * u
     c.drawLine(rx, y, rRight, y, Paint().apply { color = LINE; strokeWidth = 1f * u })
     y += 16f * u
@@ -280,7 +280,7 @@ object WidgetRender {
     val colW = strip.width() / 3
     val cols = listOf(
       Triple("Fuel", s.fuelPct.toString(), "%") to fuelColor(s.fuelPct),
-      Triple("Battery", trim(s.batteryV), " V") to INK,
+      Triple("Battery", s.batteryV?.let(::trim) ?: "--", " V") to INK,
       Triple("Range", if (s.rangeKm > 0) s.rangeKm.toString() else "--", " km") to INK,
     )
     cols.forEachIndexed { i, (t, col) ->

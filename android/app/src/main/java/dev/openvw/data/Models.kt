@@ -6,14 +6,14 @@ data class Telemetry(
   val speedKmh: Int? = null,
   val rpm: Int? = null,
   val fuelPct: Int = 0,
-  val batteryV: Double = 12.4,
+  val batteryV: Double? = null,      // 12 V battery (null = the car hasn't reported it)
   val coolantC: Int? = null,
   val intakeC: Int? = null,
   val engineLoadPct: Int? = null,
   val odometerKm: Int? = null,
   val milOn: Boolean = false,          // check-engine light
   val distanceWithMil: Int? = 0,       // km driven with MIL on
-  val distanceSinceDtc: Int? = 6145,   // km since last diagnostic reset
+  val distanceSinceDtc: Int? = null,   // km since last diagnostic reset (null = the car hasn't reported it)
   val engineOn: Boolean = false,
 )
 
@@ -69,11 +69,12 @@ object EventText {
 
 /** Where the car was last seen (latest event / trip end). */
 data class Parked(
-  val lat: Double = 12.9756,
-  val lon: Double = 77.6050,
+  val lat: Double = 0.0,      // 0 / "" until a real position arrives (see Store.parkedKnown): no placeholder city
+  val lon: Double = 0.0,
   val epoch: Long = 0,
-  val title: String = "MG Road",
-  val sub: String = "Bengaluru, Karnataka",
+  val title: String = "",
+  val sub: String = "",
+  val heading: Int? = null,   // direction of travel (0 = north) from the live feed, while driving
 )
 
 /** Geofences + alert-trigger status from Cerence /policies. */
@@ -81,6 +82,7 @@ data class AlertSetup(
   val fences: List<String> = emptyList(),
   val triggers: List<String> = emptyList(),
   val triggerStates: Map<String, Boolean> = emptyMap(),
+  val shapes: List<Fence> = emptyList(),   // the geofences' geometry, for the Locate map
 )
 
 /** Car render + paint selection from the account (or the owner's manual pick). */
@@ -211,6 +213,8 @@ data class Trip(
   val startLon: Double = 0.0,
   val endLat: Double = 0.0,
   val endLon: Double = 0.0,
+  val alarms: List<Pair<String, Int>>? = null, // every driving alarm on the trip (label, count); null = not reported
+  val tags: List<String> = emptyList(),         // all of the trip's tags; [type] is the first
 ) {
   /** Litres burned, from the fuel-% drop × the default 50 L tank (telematics reports percent only). */
   val fuelUsedL: Double get() = (startFuelPct - endFuelPct).coerceAtLeast(0) / 100.0 * 50.0

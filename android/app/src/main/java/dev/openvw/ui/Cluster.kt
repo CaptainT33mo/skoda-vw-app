@@ -88,7 +88,7 @@ fun ClusterCard(tv: Float, tele: Telemetry, status: String, modifier: Modifier =
   val rpmText = if (done) (rpm?.let { "%.1f".format(it / 1000f) } ?: "--") else "%.1f".format(rpmFrac * 8)
   val fuelK = easeOutPublic((tv - 0.2f) / 0.65f)
   val battK = battReveal(tv)
-  val battFrac = (((tele.batteryV - 10.5) / (14.8 - 10.5)).toFloat()).coerceIn(0f, 1f)
+  val battFrac = tele.batteryV?.let { (((it - 10.5) / (14.8 - 10.5)).toFloat()).coerceIn(0f, 1f) } ?: 0f
   val measurer = rememberTextMeasurer()
 
   BoxWithConstraints(
@@ -165,7 +165,7 @@ fun ClusterCard(tv: Float, tele: Telemetry, status: String, modifier: Modifier =
         if (tele.fuelPct <= 15) Red to Red else Teal to Blue, "E" to "F", Modifier.weight(1f),
       )
       SegBar(
-        k, BATTERY_ICON, "Battery", "%.1f V".format(10.5 + (tele.batteryV - 10.5) * battK), battFrac * battK,
+        k, BATTERY_ICON, "Battery", tele.batteryV?.let { "%.1f V".format(10.5 + (it - 10.5) * battK) } ?: "-- V", battFrac * battK,
         Amb to Orange, "10.5" to "14.8", Modifier.weight(1f),
       )
     }

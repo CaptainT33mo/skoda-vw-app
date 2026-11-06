@@ -89,9 +89,15 @@ fun LocateScreen(onBack: () -> Unit) {
     }
 
     Box(Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp).fillMaxWidth().height(220.dp).clip(RoundedCornerShape(24.dp)).border(1.dp, dev.openvw.theme.Hairline, RoundedCornerShape(24.dp))) {
+      // no position yet: a world view (or the first geofence) rather than a made-up city
+      val home = Store.alertSetup.shapes.firstOrNull()?.let { it.center ?: it.polygon.first() }
       OsmMap(
-        Store.parked.lat, Store.parked.lon, Modifier.matchParentSize(), zoom = if (Store.parkedKnown) 15.0 else 10.0, interactive = true, showMarker = Store.parkedKnown, mode = mode,
+        if (Store.parkedKnown) Store.parked.lat else home?.lat ?: 20.0,
+        if (Store.parkedKnown) Store.parked.lon else home?.lon ?: 0.0,
+        Modifier.matchParentSize(), zoom = if (Store.parkedKnown) 15.0 else if (home != null) 13.0 else 2.0,
+        interactive = true, showMarker = Store.parkedKnown, mode = mode,
         onMarkerClick = { carCard = !carCard },
+        trail = Store.trail, fences = Store.alertSetup.shapes,
       )
       MapModeToggle(mode, Modifier.align(Alignment.TopEnd).padding(10.dp)) { mode = it }
       // tapping the car pin offers a hand-off to Google Maps
@@ -109,6 +115,13 @@ fun LocateScreen(onBack: () -> Unit) {
       }
     }
 
+    // what the extra shapes on the map are
+    val drawn = listOfNotNull(
+      Store.alertSetup.shapes.size.takeIf { it > 0 }?.let { "Blue: your ${if (it == 1) "geofence" else "$it geofences"}" },
+      if (Store.trail.size >= 2) "Orange: ${if (Store.vehicle.status == "Parked") "your last drive" else "this drive so far"}" else null,
+    )
+    if (drawn.isNotEmpty()) Text(drawn.joinToString(" · "), style = TextStyle(color = Muted, fontSize = 11.sp), modifier = Modifier.padding(start = 22.dp, end = 20.dp, top = 8.dp))
+
     // where the car is
     Row(Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp).card(24.dp).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
       Box(Modifier.size(44.dp).clip(RoundedCornerShape(22.dp)).background(Ink), contentAlignment = Alignment.Center) {
@@ -120,7 +133,10 @@ fun LocateScreen(onBack: () -> Unit) {
         Spacer(Modifier.height(2.dp))
         Text(if (Store.parkedKnown) Store.parked.title else "Location not available yet", maxLines = 1, style = TextStyle(color = Ink, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold))
         Text(
-          if (Store.parkedKnown) listOf(Store.parked.sub, sinceLabel(Store.parked.epoch)).filter { it.isNotEmpty() }.joinToString(" · ")
+          if (Store.parkedKnown) listOf(
+            Store.parked.heading?.takeIf { Store.vehicle.status != "Parked" }?.let { "Heading ${dev.openvw.data.Telematics.compass(it)}" } ?: "",
+            Store.parked.sub, sinceLabel(Store.parked.epoch),
+          ).filter { it.isNotEmpty() }.joinToString(" · ")
           else "Shows after your next drive, once the engine is switched off",
           maxLines = 2, style = TextStyle(color = Muted, fontSize = 12.sp, lineHeight = 16.sp),
         )

@@ -5,7 +5,7 @@ import android.content.Context
 /** Snapshot the home-screen widgets read (written by the app after each data load). */
 data class WidgetSnapshot(
   val fuelPct: Int = 0,
-  val batteryV: Double = 12.4,
+  val batteryV: Double? = null, // null = not reported
   val status: String = "Parked",
   val variant: String = "",
   val model: String = "",
@@ -38,7 +38,7 @@ object WidgetData {
   fun save(ctx: Context, s: WidgetSnapshot) {
     prefs(ctx).edit()
       .putInt("fuelPct", s.fuelPct)
-      .putFloat("batteryV", s.batteryV.toFloat())
+      .also { e -> s.batteryV?.let { e.putFloat("batteryV", it.toFloat()) } ?: e.remove("batteryV") }
       .putString("status", s.status)
       .putString("variant", s.variant)
       .putString("model", s.model)
@@ -71,7 +71,7 @@ object WidgetData {
     val d = WidgetSnapshot()
     return WidgetSnapshot(
       fuelPct = p.getInt("fuelPct", d.fuelPct),
-      batteryV = p.getFloat("batteryV", d.batteryV.toFloat()).toDouble(),
+      batteryV = if (p.contains("batteryV")) p.getFloat("batteryV", 0f).toDouble() else null,
       status = p.getString("status", d.status) ?: d.status,
       variant = p.getString("variant", d.variant) ?: d.variant,
       model = p.getString("model", d.model) ?: d.model,
