@@ -32,6 +32,28 @@ class DemoTest {
     assertTrue(Store.parkedKnown)
   }
 
+  @Test fun demoTripsHaveARouteWithTheirAlertsOnIt() {
+    Demo.load(Brand.SKODA)
+    Store.trips.forEach { t ->
+      val r = Demo.route(t)
+      assertTrue(r.path.size > 10)
+      assertEquals(GeoPt(t.startLat, t.startLon), r.path.first())
+      assertEquals(GeoPt(t.endLat, t.endLon), r.path.last())
+      val alerts = r.events.filter { it.kind == "alarm" }
+      assertEquals(t.alarms!!.sumOf { it.second }, alerts.size)
+      assertTrue(alerts.all { it.epoch in t.epoch..t.endEpoch && GeoPt(it.lat, it.lon) in r.path })
+    }
+  }
+
+  @Test fun specsShowOnlyWhatIsKnown() {
+    Demo.clear()
+    val labels = Store.specs.map { it.label }
+    assertTrue("Dongle IMEI" !in labels && "Dongle firmware" !in labels && "Engine type" !in labels)
+    Demo.load(Brand.SKODA)
+    val shown = Store.specs.associate { it.label to it.value }
+    assertEquals("2024", shown["Model year"]); assertEquals("Petrol", shown["Fuel"])
+  }
+
   @Test fun demoShowsTheNewData() {
     Demo.load(Brand.SKODA)
     assertTrue(Store.trips.all { it.alarms != null && it.tags.isNotEmpty() && it.tags.first() == it.type })

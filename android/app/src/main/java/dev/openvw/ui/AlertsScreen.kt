@@ -1,6 +1,7 @@
 package dev.openvw.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -47,7 +48,7 @@ import dev.openvw.theme.Muted
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun AlertsScreen(onBack: () -> Unit) {
+fun AlertsScreen(onBack: () -> Unit, onOpenTrip: (dev.openvw.data.Trip, CarEvent) -> Unit = { _, _ -> }) {
   var tab by remember { mutableStateOf(0) }
   Column(Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
     BackBar(onBack, showBack = false)
@@ -66,7 +67,9 @@ fun AlertsScreen(onBack: () -> Unit) {
         Column(Modifier.padding(horizontal = 16.dp).card(24.dp).padding(horizontal = 16.dp)) {
           evs.forEachIndexed { i, e ->
             if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(LineSoft))
-            EventRow(e)
+            // an alert opens the trip it happened on, where it's shown on the route map
+            val trip = if (e.kind == "alarm") Store.trips.firstOrNull { e.epoch in (it.epoch - 60)..(it.endEpoch + 60) } else null
+            EventRow(e, trip?.let { t -> { onOpenTrip(t, e) } })
           }
         }
       }
@@ -126,10 +129,13 @@ fun AlertsScreen(onBack: () -> Unit) {
 }
 
 @Composable
-private fun EventRow(e: CarEvent) {
+private fun EventRow(e: CarEvent, onOpen: (() -> Unit)? = null) {
   val alarm = e.kind == "alarm"
   val on = e.title == "Engine on"
-  Row(Modifier.fillMaxWidth().padding(vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+  Row(
+    Modifier.fillMaxWidth().then(if (onOpen != null) Modifier.clickable(onClick = onOpen) else Modifier).padding(vertical = 14.dp),
+    verticalAlignment = Alignment.CenterVertically,
+  ) {
     Box(
       Modifier.size(38.dp).clip(RoundedCornerShape(19.dp)).background(if (alarm) RedSoftBg else if (on) Ink else Field),
       contentAlignment = Alignment.Center,
@@ -148,6 +154,7 @@ private fun EventRow(e: CarEvent) {
       if (sub.isNotEmpty()) Text(sub, maxLines = 1, style = TextStyle(color = Muted, fontSize = 12.sp))
     }
     Text(SimpleDateFormat("h:mm a", Locale.ENGLISH).format(Date(e.epoch * 1000)), style = TextStyle(color = Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold).merge(Tnum))
+    if (onOpen != null) { Spacer(Modifier.width(6.dp)); VIcon(Ic.chevronR, size = 14.dp, color = Muted, stroke = 2f) }
   }
 }
 

@@ -38,6 +38,7 @@ class Session(context: Context) {
   // owner from the Cerence login (no profile endpoint to re-read it later)
   var ownerName: String get() = s("ownerName"); set(v) = put("ownerName", v)
   var ownerEmail: String get() = s("ownerEmail"); set(v) = put("ownerEmail", v)
+  var ownerAddress: String get() = s("ownerAddress"); set(v) = put("ownerAddress", v) // as the account reports it
   // owner details typed in on this phone (no server API to change them); "" = use the account's
   var nameOverride: String get() = s("nameOverride"); set(v) = put("nameOverride", v)
   var emailOverride: String get() = s("emailOverride"); set(v) = put("emailOverride", v)
@@ -72,8 +73,9 @@ class Session(context: Context) {
   val loggedIn: Boolean get() = verified && (teleRefreshToken.isNotEmpty() || installationID != 0)
 
   fun clearAuth() {
-    verified = false; token = ""; crmToken = ""; teleToken = ""; cerenceToken = ""; teleRefreshToken = ""; teleExpiresAt = 0; otpSessionId = ""; ownerName = ""; ownerEmail = ""
+    verified = false; token = ""; crmToken = ""; teleToken = ""; cerenceToken = ""; teleRefreshToken = ""; teleExpiresAt = 0; otpSessionId = ""; ownerName = ""; ownerEmail = ""; ownerAddress = ""
     nameOverride = ""; emailOverride = ""; addressOverride = ""
     cars = ""
+    loginId = 0; userId = 0; signStamp = 0 // savwconnect sign-in ids
   }
 }

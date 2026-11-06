@@ -58,6 +58,8 @@ object Demo {
       engineType = "DEMO",
       dongleImei = "000000000000000",
       dongleFirmware = "demo",
+      modelYear = "2024",
+      fuelType = "Petrol",
       status = "Driving",
     )
     Store.owner = Owner(name = "Demo Driver", email = "demo@carpulse.example", mobile = "+91 00000 00000", address = "Bengaluru, Karnataka")
@@ -157,6 +159,34 @@ object Demo {
     )
     Store.vehicle = Store.vehicle.copy(status = if (stopped) "Idling" else "Driving")
     Store.updatedAt = System.currentTimeMillis()
+  }
+
+  /**
+   * A demo trip's map: a winding path from start to end (about one point every 25 s, like the real dongle) with
+   * the trip's alerts placed along it.
+   */
+  fun route(t: Trip): TripRoute {
+    if (t.startLat == 0.0 || t.endLat == 0.0) return TripRoute()
+    val n = (t.durMin * 60 / 25).coerceIn(12, 200)
+    val seed = t.id.hashCode()
+    val path = (0..n).map { k ->
+      val f = k / n.toDouble()
+      val bend = sin(f * PI) // stay on the straight line at both ends
+      GeoPt(
+        t.startLat + (t.endLat - t.startLat) * f + bend * 0.0035 * sin(f * 4 * PI + seed % 7),
+        t.startLon + (t.endLon - t.startLon) * f + bend * 0.0030 * sin(f * 3 * PI + seed % 5),
+      )
+    }.let { it.dropLast(1) + GeoPt(t.endLat, t.endLon) }
+    val alerts = t.alarms.orEmpty().flatMap { (title, count) -> List(count) { title } }
+    val events = alerts.mapIndexed { i, title ->
+      val f = (i + 1.0) / (alerts.size + 1)
+      val p = path[(f * n).toInt()]
+      CarEvent("${t.id}-a$i", "alarm", title, t.epoch + ((t.endEpoch - t.epoch) * f).toLong(), p.lat, p.lon,
+        if (title == "Over the speed limit") "${86 + i * 3} km/h · limit 80" else "")
+    }
+    return TripRoute(path, listOf(
+      CarEvent("${t.id}-on", "engine", "Engine on", t.epoch, t.startLat, t.startLon),
+    ) + events + CarEvent("${t.id}-off", "engine", "Engine off", t.endEpoch, t.endLat, t.endLon))
   }
 
   /** Back to an empty app (leaving demo mode). */

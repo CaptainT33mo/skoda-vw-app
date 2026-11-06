@@ -104,10 +104,25 @@ class TelematicsTest {
     assertEquals(10.29, t.last().lat, 1e-9)
   }
 
+  // ---- a trip's itinerary (GET /api/v1/trip/{id}) ----
+  @Test fun itineraryBecomesAPath() {
+    val it = listOf(
+      mapOf("speed" to 5, "heading" to 0, "latitude" to 12.97, "longitude" to 77.75, "timestamp" to 1),
+      mapOf("speed" to 6, "latitude" to 12.97, "longitude" to 77.75, "timestamp" to 2),   // parked a moment: one point
+      mapOf("speed" to 7, "latitude" to 0.0, "longitude" to 0.0, "timestamp" to 3),       // no fix: skipped
+      mapOf("speed" to 9, "latitude" to "12.98", "longitude" to "77.76", "timestamp" to 4),
+      "junk",
+    )
+    assertEquals(listOf(GeoPt(12.97, 77.75), GeoPt(12.98, 77.76)), Telematics.path(it))
+  }
+
   // ---- no placeholder data in the defaults ----
   @Test fun defaultsInventNothing() {
     assertNull(Telemetry().distanceSinceDtc)
     assertNull(Telemetry().batteryV)
+    assertEquals("", VehicleInfo().dongleImei)
+    assertEquals("", VehicleInfo().dongleFirmware)
+    assertEquals("", VehicleInfo().engineType)
     assertEquals("", Parked().title)
     assertEquals(0.0, Parked().lat, 0.0)
   }

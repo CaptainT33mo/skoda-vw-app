@@ -7,7 +7,7 @@ package dev.openvw.data
  */
 object RawLog {
   private val SECRET = Regex(
-    "imei|iccid|imsi|msisdn|phone|mobile|sms|email|token|password|secret|registration|regno|plate|licen[cs]e|deviceid|serial|" +
+    "imei|iccid|imsi|msisdn|phone|mobile|sms|email|token|password|secret|registration|regno|plate|licen[cs]e|deviceid|serial|userid|loginid|mail|contact|owner|birth|gender|dob|nickname|licen[cs]|loginvia|" +
       "address|firstname|lastname|fullname|ownername|username|customer",
     RegexOption.IGNORE_CASE,
   )
@@ -21,12 +21,16 @@ object RawLog {
   private fun mask(s: String): String =
     IMEI.replace(VIN.replace(s) { m -> if (m.value.any { it.isLetter() } && m.value.any { it.isDigit() }) "<hidden>" else m.value }, "<hidden>")
 
-  fun redact(v: Any?, key: String = ""): Any? = when {
+  // people's names: the account's own fields ("userInfo.name", "telematics_Name"), not an alert's "name"
+  private val PERSON = Regex("(^|_)(first|last|full)?name$", RegexOption.IGNORE_CASE)
+
+  fun redact(v: Any?, key: String = "", inPerson: Boolean = false): Any? = when {
     v == null -> null
     key.isNotEmpty() && (SECRET.containsMatchIn(key) || VIN_KEY.containsMatchIn(key)) -> "<hidden>"
+    key.isNotEmpty() && PERSON.containsMatchIn(key) && (inPerson || key.contains('_')) -> "<hidden>"
     key.isNotEmpty() && COORD.matches(key) && Telematics.num(v) != null -> "<coord>"
-    v is Map<*, *> -> v.entries.associate { (k, x) -> k.toString() to redact(x, k.toString()) }
-    v is List<*> -> v.map { redact(it, key) }
+    v is Map<*, *> -> v.entries.associate { (k, x) -> k.toString() to redact(x, k.toString(), inPerson || key.equals("userInfo", true) || key.equals("vehicle", true)) }
+    v is List<*> -> v.map { redact(it, key, inPerson) }
     v is String -> mask(v)
     v is Number && IMEI.matches(v.toString()) -> "<hidden>"
     else -> v

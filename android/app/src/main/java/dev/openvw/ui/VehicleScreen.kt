@@ -62,7 +62,6 @@ fun VehicleScreen(
   privacy: Boolean = false,
   onPrivacy: (Boolean) -> Unit = {},
   onLogout: () -> Unit = {},
-  onRegNo: (String) -> Unit = {},
   onOwner: (name: String, email: String, address: String) -> Unit = { _, _, _ -> },
   onPaint: (String) -> Unit = {},
   onPrice: (Double) -> Unit = {},
@@ -72,8 +71,6 @@ fun VehicleScreen(
   onAlertType: (dev.openvw.data.Alerts.Type, Boolean) -> Unit = { _, _ -> },
 ) {
   var tab by remember { mutableStateOf(initialTab) }
-  var regEditor by remember { mutableStateOf(false) }
-  var regDraft by remember { mutableStateOf(Store.vehicle.regNo) }
   var ownerEditor by remember { mutableStateOf(false) }
   var nameDraft by remember { mutableStateOf("") }
   var emailDraft by remember { mutableStateOf("") }
@@ -107,21 +104,9 @@ fun VehicleScreen(
         val cleanReg = Store.vehicle.regNo.trim().takeUnless {
           it.isBlank() || it.equals("null", ignoreCase = true) || it.equals("n/a", ignoreCase = true) || it == "-"
         } ?: ""
-        val reg = cleanReg.ifBlank { "Not added" }
-        InfoRow("Vehicle reg. no.", if (privacy) Mask.reg(reg) else reg, muted = reg == "Not added")
-        Box(
-          Modifier.fillMaxWidth().padding(bottom = 12.dp)
-            .clickable {
-              regDraft = cleanReg
-              regEditor = true
-            },
-          contentAlignment = Alignment.CenterStart,
-        ) {
-          Text(
-            if (reg == "Not added") "Add reg. number manually" else "Edit reg. number",
-            style = TextStyle(color = Ink, fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
-          )
-        }
+        // read-only, as in the official app: the registration comes from the car's account
+        if (cleanReg.isBlank()) InfoRow("Vehicle reg. no.", "Not reported by your account", muted = true)
+        else InfoRow("Vehicle reg. no.", if (privacy) Mask.reg(cleanReg) else cleanReg)
       }
       // specs grid
       Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp).card(24.dp).padding(horizontal = 18.dp, vertical = 4.dp)) {
@@ -139,29 +124,6 @@ fun VehicleScreen(
           }
         }
 
-        if (regEditor) {
-          AlertDialog(
-            onDismissRequest = { regEditor = false },
-            title = { Text("Vehicle reg. number") },
-            text = {
-              OutlinedTextField(
-                value = regDraft,
-                onValueChange = { regDraft = it.uppercase() },
-                singleLine = true,
-                placeholder = { Text("KA01AB1234") },
-              )
-            },
-            confirmButton = {
-              TextButton(onClick = {
-                onRegNo(regDraft)
-                regEditor = false
-              }) { Text("Save") }
-            },
-            dismissButton = {
-              TextButton(onClick = { regEditor = false }) { Text("Cancel") }
-            },
-          )
-        }
       }
       HealthCard(Store.telemetry, Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp))
 

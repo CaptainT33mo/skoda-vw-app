@@ -152,12 +152,14 @@ object CarLook {
 data class VehicleInfo(
   val variant: String = "",
   val model: String = "",
-  val vehicleName: String = "Factory:MEXA11AA0AA000000",
+  val vehicleName: String = "",   // "" = unknown until the car list loads (no placeholder VIN / IMEI / firmware)
   val regNo: String = "",
   val colour: String = "", // "" = the account didn't report one (Cerence sign-in never does)
-  val engineType: String = "DUM A00000",
-  val dongleImei: String = "860000000000000",
-  val dongleFirmware: String = "1.0.0.27",
+  val engineType: String = "",
+  val dongleImei: String = "",
+  val dongleFirmware: String = "",
+  val modelYear: String = "",
+  val fuelType: String = "",   // "Petrol", "Diesel", … from the car list
   val status: String = "Parked",
 )
 
@@ -173,9 +175,11 @@ data class Owner(
   val mobile: String = "+91 00000 00000",
   val address: String = "",
 ) {
+  /** First letters of the first and last name ("Vibhor Hemant Sharma" -> "VS"); one letter for a single name. */
   val initials: String
     get() = name.trim().split(Regex("\\s+")).filter { it.isNotBlank() }
-      .take(2).joinToString("") { it.first().uppercase() }
+      .let { w -> if (w.size <= 1) w else listOf(w.first(), w.last()) }
+      .joinToString("") { it.first().uppercase() }
   val first: String
     get() = name.trim().split(Regex("\\s+")).firstOrNull()
       ?.lowercase()?.replaceFirstChar { it.uppercase() } ?: ""
@@ -222,6 +226,9 @@ data class Trip(
   val mileage: Double get() = if (fuelUsedL > 0 && km > 0) km / fuelUsedL else 0.0
 }
 
+/** A trip's actual GPS path and the events along it (GET /api/v1/trip/{id}), for the trip map. */
+data class TripRoute(val path: List<GeoPt> = emptyList(), val events: List<CarEvent> = emptyList())
+
 /** A workshop / showroom the owner saved (the hearts on Locate). Kept on this phone only. */
 data class Workshop(val id: String, val name: String, val address: String, val phone: String = "")
 
@@ -246,15 +253,4 @@ object Repo {
     ),
   )
 
-
-  val specs: List<Spec>
-    get() = listOf(
-      Spec("Model", vehicle.model),
-      Spec("Variant", vehicle.variant),
-      Spec("Colour", vehicle.colour),
-      Spec("Fuel", "Petrol"),
-      Spec("Engine type", vehicle.engineType, mono = true),
-      Spec("Dongle firmware", vehicle.dongleFirmware, mono = true),
-      Spec("Dongle IMEI", vehicle.dongleImei, mono = true),
-    )
 }

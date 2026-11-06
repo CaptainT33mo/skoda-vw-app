@@ -46,6 +46,9 @@ import org.osmdroid.views.overlay.TilesOverlay
 
 enum class MapMode { STREET, SATELLITE, HYBRID }
 
+/** A coloured dot on the map (trip start / end, a driving alert); tapping it calls onPinClick with its index. */
+data class MapPin(val lat: Double, val lon: Double, val color: Int, val big: Boolean = false)
+
 // Esri basemaps — free, no API key ({z}/{y}/{x} order).
 // (OSM's own volunteer servers block unregistered apps; CARTO now needs a key.)
 private fun esri(name: String, service: String, maxZoom: Int) = object : OnlineTileSourceBase(
@@ -75,9 +78,13 @@ fun OsmMap(
   onMarkerClick: (() -> Unit)? = null,
   trail: List<GeoPt> = emptyList(),   // the current drive, drawn as a line
   fences: List<Fence> = emptyList(),  // geofences, drawn as shaded areas
+  pins: List<MapPin> = emptyList(),
+  onPinClick: ((Int) -> Unit)? = null,
+  fitTo: List<GeoPt> = emptyList(),   // non-empty: frame these points (a trip's route) instead of centring on lat/lon
 ) {
   val ctx = LocalContext.current
   val onTap by rememberUpdatedState(onMarkerClick)
+  val onPin by rememberUpdatedState(onPinClick)
   val dark = dev.openvw.theme.Palette.dark // street map follows the app theme (satellite photos don't change)
   val labels = remember {
     TilesOverlay(MapTileProviderBasic(ctx, EsriRef), ctx).apply {
@@ -94,6 +101,7 @@ fun OsmMap(
       tag = zoom
       controller.setCenter(GeoPoint(lat, lon))
       if (showMarker) overlays.add(Marker(this).apply {
+        id = CAR
         position = GeoPoint(lat, lon)
         setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
         title = "Last parked here"
@@ -105,7 +113,7 @@ fun OsmMap(
     }
   }
   val shapes = remember { mutableListOf<Overlay>() }        // trail + fence overlays on the map now
-  val shapesFor = remember { arrayOfNulls<Any>(1) }          // the (trail, fences) they were drawn from
+  val shapesFor = remember { arrayOfNulls<Any>(2) }          // [0] what they were drawn from, [1] the framed points
   val accent = dev.openvw.theme.Accent.toArgb()
   DisposableEffect(Unit) {
     map.onResume()
@@ -122,8 +130,8 @@ fun OsmMap(
     if (mode == MapMode.HYBRID && !hasLabels) mv.overlays.add(0, labels)
     else if (mode != MapMode.HYBRID && hasLabels) mv.overlays.remove(labels)
     // the zoom changes when the location goes from unknown (world view) to known
-    if (mv.tag != zoom) { mv.controller.setZoom(zoom); mv.tag = zoom }
-    val key = trail to fences
+    if (fitTo.isEmpty() && mv.tag != zoom) { mv.controller.setZoom(zoom); mv.tag = zoom }
+    val key = Triple(trail, fences, pins)
     if (shapesFor[0] != key) {
       shapesFor[0] = key
       mv.overlays.removeAll(shapes); shapes.clear()
@@ -144,13 +152,36 @@ fun OsmMap(
         outlinePaint.strokeCap = android.graphics.Paint.Cap.ROUND
         outlinePaint.strokeJoin = android.graphics.Paint.Join.ROUND
       }
+      pins.forEachIndexed { i, p ->
+        shapes += Marker(mv).apply {
+          position = GeoPoint(p.lat, p.lon)
+          setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+          icon = dotPin(ctx, p.color, p.big)
+          setOnMarkerClickListener { _, _ -> onPin?.invoke(i); true }
+        }
+      }
       // under the car pin
-      val at = mv.overlays.indexOfFirst { it is Marker }.let { if (it < 0) mv.overlays.size else it }
+      val at = mv.overlays.indexOfFirst { it is Marker && it.id == CAR }.let { if (it < 0) mv.overlays.size else it }
       mv.overlays.addAll(at, shapes)
     }
-    val pt = GeoPoint(lat, lon)
-    mv.controller.setCenter(pt)
-    mv.overlays.filterIsInstance<Marker>().forEach { it.position = pt }
+    if (fitTo.isNotEmpty()) {
+      // frame the route once per route (the user can pan / zoom after)
+      if (shapesFor[1] != fitTo) {
+        shapesFor[1] = fitTo
+        val frame = {
+          if (fitTo.size == 1) { mv.controller.setZoom(15.0); mv.controller.setCenter(GeoPoint(fitTo[0].lat, fitTo[0].lon)) }
+          else mv.zoomToBoundingBox(
+            org.osmdroid.util.BoundingBox.fromGeoPointsSafe(fitTo.map { GeoPoint(it.lat, it.lon) }),
+            false, (28 * ctx.resources.displayMetrics.density).toInt(),
+          )
+        }
+        if (mv.isLayoutOccurred) frame() else mv.addOnFirstLayoutListener { _, _, _, _, _ -> frame() }
+      }
+    } else {
+      val pt = GeoPoint(lat, lon)
+      mv.controller.setCenter(pt)
+      mv.overlays.filterIsInstance<Marker>().filter { it.id == CAR }.forEach { it.position = pt }
+    }
     mv.invalidate()
   }
   if (interactive) ZoomButtons(Modifier.align(Alignment.BottomEnd).padding(10.dp), { map.controller.zoomIn() }, { map.controller.zoomOut() })
@@ -193,6 +224,20 @@ private fun MapChip(text: String, active: Boolean, onClick: () -> Unit) {
   ) {
     Text(text, style = TextStyle(color = if (active) Card else Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold))
   }
+}
+
+private const val CAR = "car"
+
+/** A coloured dot with a white ring. */
+private fun dotPin(ctx: android.content.Context, color: Int, big: Boolean): android.graphics.drawable.Drawable {
+  val d = ctx.resources.displayMetrics.density
+  val sz = ((if (big) 22 else 18) * d).toInt()
+  val bmp = android.graphics.Bitmap.createBitmap(sz, sz, android.graphics.Bitmap.Config.ARGB_8888)
+  val c = android.graphics.Canvas(bmp)
+  val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+  p.color = android.graphics.Color.WHITE; c.drawCircle(sz / 2f, sz / 2f, sz / 2f, p)
+  p.color = color; c.drawCircle(sz / 2f, sz / 2f, sz / 2f - 3 * d, p)
+  return android.graphics.drawable.BitmapDrawable(ctx.resources, bmp)
 }
 
 /** Ink car pin with a white ring (matches the Home map pin). */

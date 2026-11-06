@@ -27,6 +27,9 @@ object Store {
   var plans by mutableStateOf(emptyList<PlanInfo>())
   var pendingDrive by mutableStateOf<Trip?>(null)  // last drive from engine on/off, until the full trip finalizes
   var detailTrip by mutableStateOf<Trip?>(null)    // trip shown on the detail page
+  var routes by mutableStateOf(emptyMap<String, TripRoute>()) // trip id -> its GPS path + events, once opened
+  var routeLoading by mutableStateOf<String?>(null)           // trip id whose route is being fetched
+  var detailFocus by mutableStateOf<CarEvent?>(null)          // alert the trip page opened for (from Updates)
   var tripRange by mutableStateOf<Pair<Long, Long>?>(null) // date filter on Trips (start/end day, epoch ms); null = latest trips
   var tripResults by mutableStateOf(emptyList<Trip>())     // trips found for tripRange
   var tripSearching by mutableStateOf(false)
@@ -43,16 +46,23 @@ object Store {
 
   var savedWorkshops by mutableStateOf(emptyList<Workshop>()) // the owner's own saved workshops (Locate hearts)
 
+  /** Car details on My car; anything the account doesn't report is left out rather than shown as a placeholder. */
   val specs: List<Spec>
-    get() = listOf(
-      Spec("Model", vehicle.model),
-      Spec("Variant", vehicle.variant),
+    get() = listOfNotNull(
+      spec("Model", vehicle.model),
+      spec("Variant", vehicle.variant),
+      spec("Model year", vehicle.modelYear),
       Spec("Colour", vehicle.colour.ifBlank { if (paintPick.isNotEmpty()) "${CarLook.effective("").label} (set by you)" else "Not reported by your account" }),
-      Spec("Fuel", "Petrol"),
-      Spec("Engine type", vehicle.engineType, mono = true),
-      Spec("Dongle firmware", vehicle.dongleFirmware, mono = true),
-      Spec("Dongle IMEI", Mask.imei(vehicle.dongleImei), mono = true),
+      spec("Fuel", vehicle.fuelType),
+      spec("Engine type", vehicle.engineType, mono = true),
+      spec("Dongle IMEI", vehicle.dongleImei, Mask.imei(vehicle.dongleImei), mono = true),
+      spec("Dongle firmware", vehicle.dongleFirmware, mono = true),
+      spec("Dongle software", dongle.firmware, mono = true),
+      spec("Dongle status", dongle.status.lowercase().replaceFirstChar { it.uppercase() }),
     )
+
+  private fun spec(label: String, raw: String, shown: String = raw, mono: Boolean = false) =
+    if (raw.isBlank() || raw == "null") null else Spec(label, shown, mono)
 }
 
 /** Privacy mode: swap identifying fields for plausible mimic values (for sharing/screens). */

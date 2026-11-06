@@ -24,7 +24,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.openvw.data.GoogleMaps
+import dev.openvw.data.CarEvent
+import dev.openvw.data.GeoPt
 import dev.openvw.data.Trip
+import dev.openvw.data.TripRoute
+import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.toArgb
+import dev.openvw.theme.Red
 import dev.openvw.theme.AmberDark
 import dev.openvw.theme.AmberSoftBg
 import dev.openvw.theme.Border
@@ -36,8 +47,16 @@ import dev.openvw.theme.LineSoft
 import dev.openvw.theme.Muted
 
 @Composable
-fun TripDetailScreen(trip: Trip?, onBack: () -> Unit) {
+fun TripDetailScreen(
+  trip: Trip?, route: TripRoute?, loadingRoute: Boolean, onLoadRoute: (Trip) -> Unit, onBack: () -> Unit,
+  focus: CarEvent? = null, // opened from an alert in Updates: show that alert on the map
+) {
   val ctx = LocalContext.current
+  LaunchedEffect(trip?.id) { trip?.let(onLoadRoute) }
+  var selected by remember(trip?.id) { mutableStateOf<CarEvent?>(null) } // alert shown on the map
+  LaunchedEffect(focus, route) {
+    if (focus != null && route != null) selected = focusedAlert(focus, route.events)
+  }
   Column(Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
     BackBar(onBack)
     Text("Trip details", style = H1, modifier = Modifier.padding(start = 20.dp, top = 4.dp))
@@ -81,6 +100,9 @@ fun TripDetailScreen(trip: Trip?, onBack: () -> Unit) {
         }
       }
     }
+
+    // the road actually driven, with where each alert happened
+    if (!trip.pending) TripMap(trip, route, loadingRoute, selected) { selected = it }
 
     if (trip.pending) {
       Text(
@@ -131,13 +153,29 @@ fun TripDetailScreen(trip: Trip?, onBack: () -> Unit) {
         }
       }
 
-      // every driving alarm the car counted on this trip (not only hard brakes)
-      trip.alarms?.let { alarms ->
+      // every driving alert on this trip: each one with its time once the trip's events load, else the counts
+      val instances = route?.events?.filter { it.kind == "alarm" }
+      if (instances != null || trip.alarms != null) {
         Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp).card(24.dp).padding(horizontal = 18.dp, vertical = 14.dp)) {
           Text("DRIVING ALERTS", style = label())
           Spacer(Modifier.height(6.dp))
-          if (alarms.isEmpty()) Text("None on this trip", style = TextStyle(color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Bold))
-          alarms.forEachIndexed { i, (name, count) ->
+          val counts = trip.alarms.orEmpty()
+          if (instances?.isEmpty() ?: counts.isEmpty()) Text("None on this trip", style = TextStyle(color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Bold))
+          if (instances != null) instances.forEachIndexed { i, e ->
+            if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(LineSoft))
+            Row(
+              Modifier.fillMaxWidth().clickable(enabled = e.lat != 0.0) { selected = e }.padding(vertical = 10.dp),
+              verticalAlignment = Alignment.CenterVertically,
+            ) {
+              Box(Modifier.size(10.dp).clip(RoundedCornerShape(5.dp)).background(Red))
+              Spacer(Modifier.width(12.dp))
+              Column(Modifier.weight(1f)) {
+                Text(e.title, style = TextStyle(color = Ink, fontSize = 15.sp, fontWeight = if (e == selected) FontWeight.ExtraBold else FontWeight.Bold))
+                if (e.detail.isNotBlank()) Text(e.detail, style = TextStyle(color = Muted, fontSize = 12.sp))
+              }
+              Text(clockOf(e.epoch), style = TextStyle(color = Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold).merge(Tnum))
+            }
+          } else counts.forEachIndexed { i, (name, count) ->
             if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(LineSoft))
             Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
               Text(name, style = TextStyle(color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Bold), modifier = Modifier.weight(1f))
@@ -166,13 +204,79 @@ fun TripDetailScreen(trip: Trip?, onBack: () -> Unit) {
           Row(verticalAlignment = Alignment.CenterVertically) {
             VIcon(Ic.navArrow, size = 16.dp, color = Ink, stroke = 2f)
             Spacer(Modifier.width(8.dp))
-            Text("View route in Google Maps", style = TextStyle(color = Ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold))
+            Text("Directions in Google Maps", style = TextStyle(color = Ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold))
           }
         }
       }
     }
   }
 }
+
+/** The trip on a map: the GPS path the car reported, start / end, and a red dot per driving alert. */
+@Composable
+private fun TripMap(trip: Trip, route: TripRoute?, loading: Boolean, selected: CarEvent?, onSelect: (CarEvent?) -> Unit) {
+  val path = route?.path.orEmpty()
+  val ends = listOfNotNull(
+    GeoPt(trip.startLat, trip.startLon).takeIf { trip.startLat != 0.0 },
+    GeoPt(trip.endLat, trip.endLon).takeIf { trip.endLat != 0.0 },
+  )
+  val frame = path.ifEmpty { ends }
+  if (frame.isEmpty()) return
+  var mode by remember { mutableStateOf(MapMode.STREET) }
+  val ink = Ink.toArgb()
+  val alerts = route?.events.orEmpty().filter { it.kind == "alarm" && it.lat != 0.0 }
+  val start = path.firstOrNull() ?: ends.first()
+  val end = path.lastOrNull() ?: ends.last()
+  // (pin, the alert it stands for); start and end stand for none
+  val pins = listOf(MapPin(start.lat, start.lon, START) to null, MapPin(end.lat, end.lon, ink, big = true) to null) +
+    alerts.map { MapPin(it.lat, it.lon, ALERT, big = it == selected) to it }
+  Box(
+    Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp).fillMaxWidth().height(280.dp)
+      .clip(RoundedCornerShape(24.dp)).border(1.dp, dev.openvw.theme.Hairline, RoundedCornerShape(24.dp)),
+  ) {
+    OsmMap(
+      frame.first().lat, frame.first().lon, Modifier.matchParentSize(), interactive = true, showMarker = false, mode = mode,
+      trail = path, pins = pins.map { it.first }, fitTo = frame, onPinClick = { i -> onSelect(pins.getOrNull(i)?.second) },
+    )
+    MapModeToggle(mode, Modifier.align(Alignment.TopEnd).padding(10.dp)) { mode = it }
+    Box(Modifier.align(Alignment.TopStart).padding(10.dp).clip(RoundedCornerShape(10.dp)).background(Card).padding(horizontal = 10.dp, vertical = 6.dp)) {
+      Text(
+        when { path.size >= 2 -> "Route you drove"; loading -> "Loading route…"; else -> "Start and end only" },
+        style = TextStyle(color = Ink, fontSize = 11.sp, fontWeight = FontWeight.Bold),
+      )
+    }
+    selected?.let { e ->
+      Row(
+        Modifier.align(Alignment.BottomStart).padding(start = 10.dp, bottom = 10.dp, end = 60.dp)
+          .clip(RoundedCornerShape(16.dp)).background(Card).clickable { onSelect(null) }
+          .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+      ) {
+        Box(Modifier.size(10.dp).clip(RoundedCornerShape(5.dp)).background(Red))
+        Spacer(Modifier.width(8.dp))
+        Column {
+          Text(e.title, style = TextStyle(color = Ink, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold))
+          Text(listOf(clockOf(e.epoch), e.detail).filter { it.isNotBlank() }.joinToString(" · "), style = TextStyle(color = Muted, fontSize = 11.sp))
+        }
+      }
+    }
+  }
+  if (alerts.isNotEmpty()) Text(
+    "Green: start · Red: driving alerts (tap one) · Large dot: end",
+    style = TextStyle(color = Muted, fontSize = 11.sp), modifier = Modifier.padding(start = 22.dp, end = 20.dp, top = 8.dp),
+  )
+}
+
+/** The trip's own copy of an alert from Updates: the same event id, else the same alert closest in time. */
+internal fun focusedAlert(focus: CarEvent, events: List<CarEvent>): CarEvent? {
+  val alerts = events.filter { it.kind == "alarm" && it.lat != 0.0 }
+  return alerts.firstOrNull { it.id == focus.id }
+    ?: alerts.filter { it.title == focus.title }.minByOrNull { kotlin.math.abs(it.epoch - focus.epoch) }
+}
+
+private const val START = 0xFF1E9E5A.toInt()
+private const val ALERT = 0xFFD93A2B.toInt()
+private fun clockOf(epoch: Long) = java.text.SimpleDateFormat("h:mm a", java.util.Locale.ENGLISH).format(java.util.Date(epoch * 1000))
 
 private fun km(v: Double) = if (v > 0) "%.1f km".format(v) else "—"
 private fun mins(v: Int) = if (v >= 60) "${v / 60}h ${v % 60}m" else "$v min"

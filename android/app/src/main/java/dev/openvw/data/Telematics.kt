@@ -140,6 +140,10 @@ object Telematics {
     return if (pts.size > 1 && pts.first() == pts.last()) pts.dropLast(1) else pts // GeoJSON closes the ring
   }
 
+  /** A trip's `itinerary` (positions in time order) -> its path; points without a fix are skipped. */
+  fun path(itinerary: List<Any?>): List<GeoPt> =
+    buildList { for (x in itinerary) point(map(x))?.let { if (lastOrNull() != it) add(it) } }
+
   /**
    * Add a live position to the current drive's trail. A gap of over 20 minutes since the last point starts a new
    * trail; jitter under ~10 m is skipped; the oldest points drop off past [max].

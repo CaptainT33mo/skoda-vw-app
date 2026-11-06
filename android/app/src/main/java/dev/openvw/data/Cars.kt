@@ -12,6 +12,10 @@ data class CarRef(
   val variant: String,
   val brand: Brand?,
   val regNo: String,
+  val imei: String = "",       // the plug-in dongle's IMEI
+  val firmware: String = "",   // the dongle's firmware ("1.0.0.27")
+  val fuelType: String = "",
+  val modelYear: String = "",
 ) {
   /** "Slavia", "Taigun", … (falls back to the brand, then "Car"). */
   val title: String get() = Brand.model(model)?.let { CarLook.name(it) } ?: model.ifBlank { brand?.label ?: "Car" }
@@ -28,7 +32,7 @@ object Cars {
   fun clearCarState() {
     Store.live = false; Store.liveConnected = false; Store.updatedAt = 0L; Store.reportedAt = 0L
     Store.vehicle = Repo.vehicle; Store.telemetry = Repo.telemetry
-    Store.trips = emptyList(); Store.events = emptyList(); Store.parked = Parked(); Store.trail = emptyList(); Store.drive = DriveStats()
+    Store.trips = emptyList(); Store.events = emptyList(); Store.parked = Parked(); Store.trail = emptyList(); Store.routes = emptyMap(); Store.routeLoading = null; Store.drive = DriveStats()
     Store.dongle = Dongle(); Store.alertSetup = AlertSetup()
     Store.pendingDrive = null; Store.detailTrip = null
     Store.tripRange = null; Store.tripResults = emptyList(); Store.tripSearching = false; Store.tripSearchError = null

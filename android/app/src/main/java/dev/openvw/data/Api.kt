@@ -249,6 +249,17 @@ object Api {
     json(text).put("_status", code)
   }
 
+  /** One trip in full; with [snap] the server snaps its GPS path to the road (what MySkoda Plus draws). */
+  suspend fun tripDetail(tripId: String, teleToken: String, snap: Boolean = true): JSONObject = withContext(Dispatchers.IO) {
+    val (code, text) = req("GET", "$CERENCE/api/v1/trip/$tripId" + if (snap) "?snapFlag=true" else "", null, teleToken)
+    jsonOrRaw(text).put("_status", code)
+  }
+
+  suspend fun carLocation(carId: String, teleToken: String): JSONObject = withContext(Dispatchers.IO) {
+    val (code, text) = req("GET", "$CERENCE/api/v1/car/$carId/location", null, teleToken)
+    jsonOrRaw(text).put("_status", code)
+  }
+
   suspend fun policies(carId: String, teleToken: String): JSONObject = withContext(Dispatchers.IO) {
     val (code, text) = req("GET", "$CERENCE/api/v1/car/$carId/policies", null, teleToken)
     json(text).put("_status", code)

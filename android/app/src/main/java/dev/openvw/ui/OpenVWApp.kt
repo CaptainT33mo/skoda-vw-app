@@ -133,7 +133,7 @@ private fun MainApp(vm: AppViewModel) {
     if (stack.last().first == Screen.HOME) playKey++
   }
 
-  fun openTrip(t: dev.openvw.data.Trip) { dev.openvw.data.Store.detailTrip = t; open(Screen.TRIP_DETAIL) }
+  fun openTrip(t: dev.openvw.data.Trip) { dev.openvw.data.Store.detailTrip = t; dev.openvw.data.Store.detailFocus = null; open(Screen.TRIP_DETAIL) }
 
   BackHandler(enabled = stack.size > 1) { back() }
 
@@ -180,13 +180,12 @@ private fun MainApp(vm: AppViewModel) {
                     onClearSearch = { vm.clearTripSearch() },
                   )
                   Screen.LOCATE -> LocateScreen(onBack = ::back)
-                  Screen.ALERTS -> AlertsScreen(onBack = ::back)
+                  Screen.ALERTS -> AlertsScreen(onBack = ::back, onOpenTrip = { t, e -> openTrip(t); dev.openvw.data.Store.detailFocus = e })
                   Screen.VEHICLE -> VehicleScreen(
                     vehTab, onBack = ::back,
                     privacy = dev.openvw.data.Store.privacy,
                     onPrivacy = { vm.setPrivacy(it) },
                     onLogout = { vm.logout() },
-                    onRegNo = { vm.setVehicleRegNoManual(it) },
                     onOwner = { name, email, address -> vm.setOwnerDetails(name, email, address) },
                     onPaint = { vm.setPaint(it) },
                     onPrice = { vm.setFuelPrice(it) },
@@ -195,7 +194,14 @@ private fun MainApp(vm: AppViewModel) {
                     onAlertType = { t, on -> vm.setAlertType(t, on) },
                     onSystemTheme = { follow -> vm.setThemeMode(if (follow) "" else if (dev.openvw.data.Store.dark) "dark" else "light") },
                   )
-                  Screen.TRIP_DETAIL -> TripDetailScreen(dev.openvw.data.Store.detailTrip, onBack = ::back)
+                  Screen.TRIP_DETAIL -> dev.openvw.data.Store.detailTrip.let { t ->
+                    TripDetailScreen(
+                      t, route = t?.let { dev.openvw.data.Store.routes[it.id] },
+                      loadingRoute = t != null && dev.openvw.data.Store.routeLoading == t.id,
+                      focus = dev.openvw.data.Store.detailFocus,
+                      onLoadRoute = { vm.loadRoute(it) }, onBack = ::back,
+                    )
+                  }
                 }
               }
             }
