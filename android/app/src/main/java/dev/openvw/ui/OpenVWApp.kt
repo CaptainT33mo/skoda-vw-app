@@ -192,6 +192,7 @@ private fun MainApp(vm: AppViewModel) {
                     onDark = { vm.setDark(it) },
                     onAlerts = { vm.setAlertsOn(it) },
                     onAlertType = { t, on -> vm.setAlertType(t, on) },
+                    onInstantAlerts = { vm.setInstantAlerts(it) },
                     onSystemTheme = { follow -> vm.setThemeMode(if (follow) "" else if (dev.openvw.data.Store.dark) "dark" else "light") },
                   )
                   Screen.TRIP_DETAIL -> dev.openvw.data.Store.detailTrip.let { t ->

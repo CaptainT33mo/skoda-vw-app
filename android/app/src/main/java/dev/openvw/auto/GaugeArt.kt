@@ -11,8 +11,9 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 /**
- * Gauge images for the car screen, drawn on the phone. Numbers are never baked into the images: the host
- * renders them as template text, so they stay legible (and readable by the host) at any panel size.
+ * Gauge images for the car screen, drawn on the phone. A tile's live number is drawn inside its ring: Android
+ * Auto counts a grid update as a cheap "refresh" only while every tile title stays the same, so titles are
+ * fixed labels ("Speed", "Fuel") and the changing numbers live in the image and the tile's second line.
  * Bitmaps cross a Binder call on every refresh, so they are kept small (a few tens of KB each).
  */
 internal object GaugeArt {
@@ -25,8 +26,11 @@ internal object GaugeArt {
   private const val START = 135f   // 270° dial, gap at the bottom
   private const val SWEEP = 270f
 
-  /** A ring gauge for a grid tile: [fraction] 0..1 of the dial filled with [color]; null = no reading. */
-  fun ring(fraction: Float?, color: Int, dark: Boolean, sizePx: Int = 112): CarIcon {
+  /**
+   * A ring gauge for a grid tile: [fraction] 0..1 of the dial filled with [color] (null = no reading), with
+   * [value] written in the middle.
+   */
+  fun ring(fraction: Float?, color: Int, dark: Boolean, value: String? = null, sizePx: Int = 128): CarIcon {
     val bmp = createBitmap(sizePx, sizePx)
     val c = Canvas(bmp)
     val stroke = sizePx * 0.11f
@@ -44,6 +48,20 @@ internal object GaugeArt {
       val cy = sizePx / 2f + (r.height() / 2f) * sin(a).toFloat()
       p.style = Paint.Style.FILL
       c.drawCircle(cx, cy, stroke * 0.62f, p)
+    }
+    if (!value.isNullOrBlank()) {
+      val t = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textAlign = Paint.Align.CENTER
+        typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+        this.color = if (dark) 0xFFF3F2EF.toInt() else 0xFF16161A.toInt()
+        textSize = sizePx * 0.30f
+      }
+      // shrink long values ("1,850") to fit inside the ring
+      val room = sizePx - stroke * 4.2f
+      val w = t.measureText(value)
+      if (w > room) t.textSize *= room / w
+      val fm = t.fontMetrics
+      c.drawText(value, sizePx / 2f, sizePx / 2f - (fm.ascent + fm.descent) / 2f, t)
     }
     return icon(bmp)
   }

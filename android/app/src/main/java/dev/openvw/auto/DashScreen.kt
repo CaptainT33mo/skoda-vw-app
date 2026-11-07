@@ -22,187 +22,116 @@ import androidx.car.app.model.Pane
 import androidx.car.app.model.PaneTemplate
 import androidx.car.app.model.Row
 import androidx.car.app.model.Template
-import androidx.core.content.edit
+import androidx.car.app.versioning.CarAppApiLevels
 import androidx.core.graphics.drawable.IconCompat
 import dev.openvw.R
 import java.util.Locale
 
 /**
- * The live dashboard. Two layouts, remembered per phone:
- *  - Glance (default): a grid of gauge tiles — speed, fuel, range first. Grids reflow to the panel width, so
- *    when Android Auto shows the app in a narrow column beside Maps (split screen / Coolwalk) you still get
- *    the top tiles at full size; on a wide screen you get them all.
- *  - Details: rows with every engine value plus a mini cluster image the host drops on narrow panels.
- * All text carries short variants ([CarText] variants): the host picks the longest one that fits, so lines
- * shrink to "62 km/h" or "64% · 420 km" in a narrow panel instead of being cut off.
+ * The live dashboard: a grid of gauge tiles (speed, fuel, range, engine, battery, RPM), with "Details" and "More"
+ * as screens of their own.
+ *
+ * Android Auto allows an app only 5 template "steps" per task and closes it with an error after that. An update
+ * is free (a "refresh") only while the screen title, the number of tiles and every tile title stay the same, so
+ * here they never change: titles are fixed labels, the tile count is fixed when the screen opens, and the live
+ * numbers go in the ring images and the tiles' second lines. Details is pushed as its own screen, so going back
+ * hands its steps back (swapping templates in place used one every time).
  */
 internal class DashScreen(ctx: CarContext, private val hu: HeadUnit) : LiveScreen(ctx) {
-  private val prefs = ctx.getSharedPreferences("openvw_auto", CarContext.MODE_PRIVATE)
-  private var details: Boolean
-    get() = prefs.getBoolean("details", false)
-    set(v) = prefs.edit { putBoolean("details", v) }
+  /** Tiles to send, fixed for this screen's life (a changing count would cost a step each time). */
+  private val tileCount = carContext.limit(ConstraintManager.CONTENT_LIMIT_TYPE_GRID, 6)
+  private val bigTiles = carContext.carAppApiLevel >= CarAppApiLevels.LEVEL_8
+  private var shownTitle: String? = null
 
-  override fun key(): Any = Dash.read(carContext, hu) to details
+  override fun key(): Any = Dash.read(carContext, hu)
 
   override fun render(): Template {
     val d = Dash.read(carContext, hu)
     if (!d.signedIn) return signInTemplate()
-    return if (details) detailsTemplate(d) else glanceTemplate(d)
-  }
-
-  // ---- Glance: gauge tiles -------------------------------------------------------------------------
-
-  private fun glanceTemplate(d: Dash): Template {
     val b = GridTemplate.Builder()
       .setTitle(title(d))
       .setHeaderAction(Action.APP_ICON)
-      .setActionStrip(strip(toggleLabel = "Details"))
+      .setActionStrip(strip())
+    if (bigTiles) b.setItemSize(GridTemplate.ITEM_SIZE_LARGE)
     if (!d.hasData) return b.setLoading(true).build()
-
-    val dark = carContext.isDarkMode
-    val tiles = mutableListOf<GridItem>()
-    // 1. speed — the head unit's reading when the car shares it
-    tiles += tile(
-      title = d.speedKmh?.let { text("$it km/h", "$it") } ?: text(if (d.status == "Parked") "Parked" else "— km/h", "—"),
-      sub = text(if (d.speedFromCar) "Speed · from car" else "Speed", "Speed"),
-      icon = GaugeArt.ring(d.speedKmh?.let { it / GaugeArt.MAX_SPEED }, GaugeArt.ACCENT, dark),
-    )
-    // 2. fuel
-    val fuelColor = GaugeArt.fuelColor(d.fuelPct, d.fuelLow)
-    tiles += tile(
-      title = d.fuelPct?.let { text("$it%", "$it%") } ?: text("—"),
-      sub = if (d.fuelLow) colored("Fuel low", CarColor.RED) else text("Fuel"),
-      icon = GaugeArt.ring(d.fuelPct?.let { it / 100f }, fuelColor, dark),
-    )
-    // 3. range
-    tiles += tile(
-      title = d.rangeKm?.let { text("~$it km", "$it km") } ?: text("—"),
-      sub = text("Range"),
-      icon = GaugeArt.ring(d.rangeKm?.let { it.toFloat() / d.rangeMaxKm.coerceAtLeast(1) }, fuelColor, dark),
-    )
-    // 4. engine: check-engine light wins over the temperature when it's on
-    tiles += if (d.milOn) tile(
-      title = text("Check engine", "MIL on"),
-      sub = colored("Engine light is on", CarColor.RED),
-      icon = GaugeArt.ring(1f, GaugeArt.RED, dark),
-    ) else tile(
-      title = d.coolantC?.let { text("$it°C") } ?: text("—"),
-      sub = text("Coolant"),
-      icon = GaugeArt.ring(d.coolantC?.let { ((it - 40) / 80f) }, GaugeArt.coolantColor(d.coolantC), dark),
-    )
-    // 5. battery, 6. rpm
-    tiles += tile(
-      title = d.batteryV?.let { text("%.1f V".format(Locale.US, it)) } ?: text("—"),
-      sub = text("Battery"),
-      icon = GaugeArt.ring(d.batteryV?.let { ((it - 11.0) / 4.0).toFloat() }, GaugeArt.batteryColor(d.batteryV, d.rpm != null), dark),
-    )
-    tiles += tile(
-      title = d.rpm?.let { text("%,d rpm".format(Locale.US, it), "%,d".format(Locale.US, it)) } ?: text("—"),
-      sub = text("Engine speed", "RPM"),
-      icon = GaugeArt.ring(d.rpm?.let { it / 7000f }, if ((d.rpm ?: 0) > 6000) GaugeArt.RED else GaugeArt.BLUE, dark),
-    )
-
     val list = ItemList.Builder()
-    tiles.take(carContext.limit(ConstraintManager.CONTENT_LIMIT_TYPE_GRID, 6)).forEach { list.addItem(it) }
+    tiles(d).take(tileCount).forEach { list.addItem(it) }
     return b.setSingleList(list.build()).build()
   }
 
-  private fun tile(title: CarText, sub: CarText, icon: CarIcon): GridItem =
+  private fun tiles(d: Dash): List<GridItem> {
+    val dark = carContext.isDarkMode
+    val fuelColor = GaugeArt.fuelColor(d.fuelPct, d.fuelLow)
+    val parked = d.status == "Parked"
+    return listOf(
+      // 1. speed: the head unit's own reading when the car shares it; the second line says how fresh it is
+      tile(
+        "Speed",
+        GaugeArt.ring(d.speedKmh?.let { it / GaugeArt.MAX_SPEED } ?: if (parked) 0f else null, GaugeArt.ACCENT, dark,
+          d.speedKmh?.toString() ?: if (parked) "0" else "—"),
+        statusLine(d),
+      ),
+      // 2. fuel
+      tile(
+        "Fuel",
+        GaugeArt.ring(d.fuelPct?.let { it / 100f }, fuelColor, dark, d.fuelPct?.let { "$it%" } ?: "—"),
+        if (d.fuelLow) colored("Low — refuel soon", CarColor.RED) else text("of the tank", "tank"),
+      ),
+      // 3. range
+      tile(
+        "Range",
+        GaugeArt.ring(d.rangeKm?.let { it.toFloat() / d.rangeMaxKm.coerceAtLeast(1) }, fuelColor, dark, d.rangeKm?.toString() ?: "—"),
+        text("km left (estimate)", "km left"),
+      ),
+      // 4. engine: the check-engine light wins over the coolant temperature when it's on
+      if (d.milOn) tile("Engine", GaugeArt.ring(1f, GaugeArt.RED, dark, "!"), colored("Check-engine light ON", CarColor.RED))
+      else tile(
+        "Engine",
+        GaugeArt.ring(d.coolantC?.let { (it - 40) / 80f }, GaugeArt.coolantColor(d.coolantC), dark, d.coolantC?.let { "$it°" } ?: "—"),
+        when (GaugeArt.coolantColor(d.coolantC)) {
+          GaugeArt.BLUE -> text("Coolant · warming up", "Warming up")
+          GaugeArt.AMBER, GaugeArt.RED -> colored("Coolant · running hot", CarColor.RED)
+          else -> text("Coolant °C", "Coolant")
+        },
+      ),
+      // 5. battery
+      tile(
+        "Battery",
+        GaugeArt.ring(d.batteryV?.let { ((it - 11.0) / 4.0).toFloat() }, GaugeArt.batteryColor(d.batteryV, d.rpm != null), dark,
+          d.batteryV?.let { "%.1f".format(Locale.US, it) } ?: "—"),
+        text("volts", "V"),
+      ),
+      // 6. rpm (the dongle keeps its last value after the engine stops, so none while parked)
+      tile(
+        "RPM",
+        GaugeArt.ring(d.rpm?.let { it / 7000f } ?: if (parked) 0f else null, if ((d.rpm ?: 0) > 6000) GaugeArt.RED else GaugeArt.BLUE, dark,
+          d.rpm?.let { "%,d".format(Locale.US, it) } ?: if (parked) "0" else "—"),
+        text(if (parked) "engine off" else "engine speed", if (parked) "off" else "rpm"),
+      ),
+    )
+  }
+
+  private fun tile(title: String, icon: CarIcon, sub: CarText): GridItem =
     GridItem.Builder().setTitle(title).setText(sub).setImage(icon, GridItem.IMAGE_TYPE_LARGE).build()
 
-  // ---- Details: rows + mini cluster ----------------------------------------------------------------
-
-  private fun detailsTemplate(d: Dash): Template {
-    val b = PaneTemplate.Builder(pane(d))
-      .setTitle(title(d))
-      .setHeaderAction(Action.APP_ICON)
-      .setActionStrip(strip(toggleLabel = "Glance"))
-    return b.build()
-  }
-
-  private fun pane(d: Dash): Pane {
-    val p = Pane.Builder()
-    if (!d.hasData) return p.setLoading(true).build()
-    val rows = mutableListOf<Row>()
-
-    // speed + rpm
-    rows += Row.Builder()
-      .setTitle(
-        when {
-          d.speedKmh != null && d.rpm != null -> text(
-            "${d.speedKmh} km/h · ${"%,d".format(Locale.US, d.rpm)} rpm", "${d.speedKmh} km/h",
-          )
-          d.speedKmh != null -> text("${d.speedKmh} km/h")
-          else -> text(d.status)
-        },
-      )
-      .addText(sourceLine(d))
-      .build()
-
-    // fuel + range
-    val fuelRow = Row.Builder()
-      .setTitle(text("Fuel ${d.fuelPct ?: "—"}% · ~${d.rangeKm ?: "—"} km range", "${d.fuelPct ?: "—"}% · ${d.rangeKm ?: "—"} km"))
-    if (d.fuelLow) fuelRow.addText(colored("Fuel low — refuel soon", CarColor.RED))
-    d.odometerKm?.let { fuelRow.addText(text("Odometer %,d km".format(Locale.US, it), "%,d km".format(Locale.US, it))) }
-    rows += fuelRow.build()
-
-    // engine health
-    val eng = listOfNotNull(
-      d.coolantC?.let { "Coolant $it°C" },
-      d.batteryV?.let { "Battery %.1f V".format(Locale.US, it) },
-    )
-    val engShort = listOfNotNull(d.coolantC?.let { "$it°C" }, d.batteryV?.let { "%.1f V".format(Locale.US, it) })
-    rows += Row.Builder()
-      .setTitle(if (eng.isEmpty()) text("Engine") else text(eng.joinToString(" · "), engShort.joinToString(" · ")))
-      .addText(
-        if (d.milOn) colored("Check-engine light is ON", CarColor.RED)
-        else {
-          val more = listOfNotNull(d.engineLoadPct?.let { "Load $it%" }, d.intakeC?.let { "Intake $it°C" })
-          if (more.isEmpty()) colored("No engine warnings", CarColor.GREEN) else text(more.joinToString(" · "))
-        },
-      )
-      .build()
-
-    // where
-    if (d.place.isNotBlank()) {
-      val where = Row.Builder().setTitle(text(if (d.moving) "Near ${d.place}" else "At ${d.place}", d.place))
-      if (d.placeSub.isNotBlank()) where.addText(text(d.placeSub))
-      rows += where.build()
+  /** "km/h · Driving · Live", "Parked · 14:05", … (shorter variants for narrow panels). */
+  private fun statusLine(d: Dash): CarText {
+    val fresh = when {
+      d.feedOn -> "Live"
+      d.updatedAt > 0 -> clock(d.updatedAt)
+      else -> ""
     }
-
-    rows.take(carContext.limit(ConstraintManager.CONTENT_LIMIT_TYPE_PANE, 4)).forEach { p.addRow(it) }
-    p.setImage(GaugeArt.cluster(d.speedKmh, d.rpm, d.fuelPct, GaugeArt.fuelColor(d.fuelPct, d.fuelLow), carContext.isDarkMode))
-    p.addAction(Action.Builder().setTitle("Trips").setOnClickListener { screenManager.push(TripsScreen(carContext)) }.build())
-    p.addAction(Action.Builder().setTitle("Car health").setOnClickListener { screenManager.push(HealthScreen(carContext, hu)) }.build())
-    return p.build()
+    val long = listOf(if (d.speedKmh != null) "km/h" else "", d.status, fresh).filter { it.isNotBlank() }.joinToString(" · ")
+    return text(long, listOf(d.status, fresh).filter { it.isNotBlank() }.joinToString(" · "), d.status)
   }
 
-  // ---- shared --------------------------------------------------------------------------------------
+  /** The car's name, frozen once known: a changing title would also cost a step. */
+  private fun title(d: Dash): String = shownTitle ?: if (d.hasData) d.model.also { shownTitle = it } else "CarPulse"
 
-  /** Title: status first, so a cut-off title still says the important part. */
-  private fun title(d: Dash): String = buildString {
-    append(d.status)
-    when {
-      d.feedOn -> append(" · Live")
-      d.stale && d.updatedAt > 0 -> append(" · ").append(clock(d.updatedAt))
-      !d.hasData -> {}
-      else -> append(" · ").append(d.model)
-    }
-  }
-
-  private fun sourceLine(d: Dash): CarText = when {
-    d.speedFromCar && d.feedOn -> text("Speed from car · engine data live", "Live")
-    d.speedFromCar -> text("Speed from car · engine data ${updated(d)}", "From car")
-    d.feedOn -> colored("Live from your car", CarColor.GREEN)
-    else -> text("Last update ${updated(d)}", updated(d))
-  }
-
-  private fun updated(d: Dash) = if (d.updatedAt > 0) clock(d.updatedAt) else "—"
-
-  /** Action strip: the layout toggle and "More" (trips, health, car sensors). Max 1 titled action allowed. */
-  private fun strip(toggleLabel: String): ActionStrip = ActionStrip.Builder()
+  /** Details (its own screen) and More. Max 1 titled action allowed. */
+  private fun strip(): ActionStrip = ActionStrip.Builder()
     .addAction(
-      Action.Builder().setTitle(toggleLabel).setOnClickListener { details = !details; invalidate() }.build(),
+      Action.Builder().setTitle("Details").setOnClickListener { screenManager.push(DetailsScreen(carContext, hu)) }.build(),
     )
     .addAction(
       Action.Builder()
@@ -219,7 +148,74 @@ internal class DashScreen(ctx: CarContext, private val hu: HeadUnit) : LiveScree
     .setHeaderAction(Action.APP_ICON)
     .addAction(Action.Builder().setTitle("Retry").setOnClickListener { invalidate() }.build())
     .build()
+}
 
+/**
+ * Every value as rows beside a mini cluster. Row titles are fixed labels and there are always 4 rows, so live
+ * updates stay refreshes (see [DashScreen]); the values are in the rows' text lines and the cluster image.
+ */
+internal class DetailsScreen(ctx: CarContext, private val hu: HeadUnit) : LiveScreen(ctx) {
+  override fun key(): Any = Dash.read(carContext, hu)
+
+  override fun render(): Template {
+    val d = Dash.read(carContext, hu)
+    val p = Pane.Builder()
+    val b = { pane: Pane -> PaneTemplate.Builder(pane).setTitle("Details").setHeaderAction(Action.BACK).build() }
+    if (!d.hasData) return b(p.setLoading(true).build())
+
+    // speed + rpm
+    p.addRow(Row.Builder().setTitle("Speed")
+      .addText(when {
+        d.speedKmh != null && d.rpm != null -> text("${d.speedKmh} km/h · ${"%,d".format(Locale.US, d.rpm)} rpm", "${d.speedKmh} km/h")
+        d.speedKmh != null -> text("${d.speedKmh} km/h")
+        else -> text(d.status)
+      })
+      .addText(sourceLine(d))
+      .build())
+
+    // fuel + range + odometer
+    p.addRow(Row.Builder().setTitle("Fuel")
+      .addText(text("${d.fuelPct ?: "—"}% · ~${d.rangeKm ?: "—"} km range", "${d.fuelPct ?: "—"}% · ${d.rangeKm ?: "—"} km"))
+      .addText(
+        if (d.fuelLow) colored("Fuel low — refuel soon", CarColor.RED)
+        else text(d.odometerKm?.let { "Odometer %,d km".format(Locale.US, it) } ?: "Odometer —", d.odometerKm?.let { "%,d km".format(Locale.US, it) } ?: "—"),
+      )
+      .build())
+
+    // engine health
+    val eng = listOfNotNull(d.coolantC?.let { "Coolant $it°C" }, d.batteryV?.let { "Battery %.1f V".format(Locale.US, it) })
+    val engShort = listOfNotNull(d.coolantC?.let { "$it°C" }, d.batteryV?.let { "%.1f V".format(Locale.US, it) })
+    p.addRow(Row.Builder().setTitle("Engine")
+      .addText(if (eng.isEmpty()) text("—") else text(eng.joinToString(" · "), engShort.joinToString(" · ")))
+      .addText(
+        if (d.milOn) colored("Check-engine light is ON", CarColor.RED)
+        else {
+          val more = listOfNotNull(d.engineLoadPct?.let { "Load $it%" }, d.intakeC?.let { "Intake $it°C" })
+          if (more.isEmpty()) colored("No engine warnings", CarColor.GREEN) else text(more.joinToString(" · "))
+        },
+      )
+      .build())
+
+    // where
+    val where = Row.Builder().setTitle("Location")
+      .addText(text(if (d.place.isBlank()) "Not known yet" else if (d.moving) "Near ${d.place}" else "At ${d.place}", d.place.ifBlank { "—" }))
+    if (d.placeSub.isNotBlank()) where.addText(text(d.placeSub))
+    p.addRow(where.build())
+
+    p.setImage(GaugeArt.cluster(d.speedKmh, d.rpm, d.fuelPct, GaugeArt.fuelColor(d.fuelPct, d.fuelLow), carContext.isDarkMode))
+    p.addAction(Action.Builder().setTitle("Trips").setOnClickListener { screenManager.push(TripsScreen(carContext)) }.build())
+    p.addAction(Action.Builder().setTitle("Car health").setOnClickListener { screenManager.push(HealthScreen(carContext, hu)) }.build())
+    return b(p.build())
+  }
+
+  private fun sourceLine(d: Dash): CarText = when {
+    d.speedFromCar && d.feedOn -> text("Speed from car · engine data live", "Live")
+    d.speedFromCar -> text("Speed from car · engine data ${updated(d)}", "From car")
+    d.feedOn -> colored("Live from your car", CarColor.GREEN)
+    else -> text("Last update ${updated(d)}", updated(d))
+  }
+
+  private fun updated(d: Dash) = if (d.updatedAt > 0) clock(d.updatedAt) else "—"
 }
 
 /** Long text with optional shorter variants, longest first; the host shows the longest that fits. */

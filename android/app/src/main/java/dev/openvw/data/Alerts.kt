@@ -9,6 +9,8 @@ import android.content.Context
  */
 object Alerts {
   enum class Type(val title: String, val description: String) {
+    ENGINE("Engine on / off", "Every time the engine is switched on or off"),
+    DRIVING("Driving alerts", "Sudden braking, sharp turns, speeding and other alarms from the car"),
     BATTERY("Battery low while parked", "12 V battery under 12.0 V while the car is parked"),
     CHECK_ENGINE("Check-engine light", "The engine warning light comes on"),
     NIGHT_START("Engine started at night", "Engine switched on between midnight and 5 AM"),
@@ -86,17 +88,46 @@ object Alerts {
       } else if (f >= FUEL_OK_PCT) n = n.copy(fuelAlerted = false)
     }
 
-    // engine started at night: only engine-on events newer than the last check (none on the very first check)
+    // engine started at night: only engine-on events newer than the last check (none on the very first check).
+    // With engine on/off alerts on, that notification already says it was at night, so this one stays quiet.
     // baseline = newest event *time* (not the check time): an event reported late still counts as new
     val newest = s.engineOnEpochs.maxOrNull() ?: st.lastEngineOnSeen.takeIf { it > 0 } ?: (s.now / 1000)
     if (st.lastEngineOnSeen > 0) {
       val night = s.engineOnEpochs.filter { it > st.lastEngineOnSeen && hourOf(it) in NIGHT_FROM until NIGHT_TO }.maxOrNull()
-      if (night != null && Type.NIGHT_START in enabled) out += Alert(Type.NIGHT_START, "Engine started at ${clock(night)}",
+      if (night != null && Type.NIGHT_START in enabled && Type.ENGINE !in enabled) out += Alert(Type.NIGHT_START, "Engine started at ${clock(night)}",
         "Your car's engine was switched on during the night. If this wasn't you or someone you know, check on your car.")
     }
     n = n.copy(lastEngineOnSeen = maxOf(newest, st.lastEngineOnSeen))
     return out to n
   }
+
+  // ---- car events (engine on/off, driving alarms) ----
+
+  /** Events already notified: nothing older than [baseline] (s) counts; [keys] stops repeats. */
+  data class EventSeen(val baseline: Long = 0L, val keys: List<String> = emptyList())
+
+  /** One key per event, the same whether it came pushed live or from the event list (their ids can differ). */
+  fun eventKey(e: CarEvent) = "${e.kind}:${e.title}@${e.epoch}"
+
+  const val EVENT_MAX_AGE_S = 12 * 3600L // a phone that was offline doesn't post a day of old events
+
+  /**
+   * Which of [events] are new: newer than when alerts were turned on, not older than [EVENT_MAX_AGE_S], and not
+   * notified before. Oldest first. A first call (no baseline) only sets the baseline, so turning alerts on
+   * doesn't replay history.
+   */
+  fun newEvents(events: List<CarEvent>, seen: EventSeen, nowS: Long): Pair<List<CarEvent>, EventSeen> {
+    if (seen.baseline == 0L) return emptyList<CarEvent>() to seen.copy(baseline = nowS)
+    val floor = maxOf(seen.baseline, nowS - EVENT_MAX_AGE_S)
+    val known = seen.keys.toHashSet()
+    val fresh = events.filter { it.epoch >= floor && eventKey(it) !in known }.distinctBy(::eventKey).sortedBy { it.epoch }
+    return fresh to seen.copy(keys = (seen.keys + fresh.map(::eventKey)).takeLast(300))
+  }
+
+  /** Which alert type an event belongs to. */
+  fun typeOf(e: CarEvent): Type = if (e.kind == "engine") Type.ENGINE else Type.DRIVING
+
+  fun isNight(epochS: Long, hourOf: (Long) -> Int) = hourOf(epochS) in NIGHT_FROM until NIGHT_TO
 
   // ---- settings + state, kept on the phone ----
 
@@ -104,6 +135,18 @@ object Alerts {
 
   fun isOn(ctx: Context) = prefs(ctx).getBoolean("on", false)
   fun setOn(ctx: Context, on: Boolean) = prefs(ctx).edit().putBoolean("on", on).apply()
+
+  /** Instant alerts: a live connection kept open in the background (see work/CarWatchService). */
+  fun instant(ctx: Context) = prefs(ctx).getBoolean("instant", true)
+  fun setInstant(ctx: Context, on: Boolean) = prefs(ctx).edit().putBoolean("instant", on).apply()
+
+  fun eventSeen(ctx: Context): EventSeen {
+    val p = prefs(ctx)
+    return EventSeen(p.getLong("eventBaseline", 0L), p.getString("eventKeys", "").orEmpty().split('\n').filter { it.isNotBlank() })
+  }
+
+  fun saveEventSeen(ctx: Context, s: EventSeen) =
+    prefs(ctx).edit().putLong("eventBaseline", s.baseline).putString("eventKeys", s.keys.joinToString("\n")).apply()
 
   fun enabled(ctx: Context): Set<Type> = Type.entries.filter { prefs(ctx).getBoolean("type_${it.name}", true) }.toSet()
   fun setEnabled(ctx: Context, t: Type, on: Boolean) = prefs(ctx).edit().putBoolean("type_${t.name}", on).apply()
@@ -119,5 +162,8 @@ object Alerts {
     .putBoolean("signedOutAlerted", s.signedOutAlerted).putLong("lastEngineOnSeen", s.lastEngineOnSeen).apply()
 
   /** Forget what was announced (fresh start after sign-in or turning alerts on). */
-  fun resetState(ctx: Context) = saveState(ctx, State())
+  fun resetState(ctx: Context) {
+    saveState(ctx, State())
+    saveEventSeen(ctx, EventSeen(baseline = System.currentTimeMillis() / 1000))
+  }
 }

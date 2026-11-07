@@ -16,6 +16,7 @@ object Store {
   var reportedAt by mutableStateOf(0L)        // ms: when the car itself last reported (telemetry timestamp)
   var alertsOn by mutableStateOf(false)       // background car alerts (mirrors Alerts.isOn)
   var alertTypes by mutableStateOf(emptySet<Alerts.Type>())
+  var alertsInstant by mutableStateOf(true)  // instant alerts via the background live feed (Alerts.instant)
   var privacy by mutableStateOf(false)        // mask VIN / reg / personal info with mimic data
   var connectedSince by mutableStateOf("") // purchased / ownership date
   var dongle by mutableStateOf(Dongle())

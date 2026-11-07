@@ -10,6 +10,7 @@ import org.junit.Test
 class AlertsTest {
   private val now = 1_800_000_000_000L
   private val all = Type.entries.toSet()
+  private val noEngine = all - Type.ENGINE // the separate night alert only shows when engine on/off alerts are off
   private fun snap(
     status: String = "Parked", v: Double? = 12.6, reportedAgoMin: Long = 10, mil: Boolean = false, fuel: Int? = 50,
     engineOn: List<Long> = emptyList(), signedIn: Boolean = true,
@@ -58,7 +59,7 @@ class AlertsTest {
     val day = 86_400L * 20_000
     val twoAm = day + 2 * 3600
     val tenAm = day + 10 * 3600
-    assertEquals(listOf(Type.NIGHT_START), types(run(snap(engineOn = listOf(twoAm)), State(lastEngineOnSeen = day))))
+    assertEquals(listOf(Type.NIGHT_START), types(run(snap(engineOn = listOf(twoAm)), State(lastEngineOnSeen = day), noEngine)))
     assertTrue(run(snap(engineOn = listOf(tenAm)), State(lastEngineOnSeen = day)).first.isEmpty())     // daytime
     assertTrue(run(snap(engineOn = listOf(twoAm)), State(lastEngineOnSeen = twoAm)).first.isEmpty())   // already seen
   }
@@ -74,7 +75,45 @@ class AlertsTest {
     // the check ran at 2:03 (baseline = newest event, from yesterday), the 2:00 event only arrived by 2:18
     val day = 86_400L * 20_000
     val (_, st) = run(snap(engineOn = listOf(day - 3600)), State(lastEngineOnSeen = 1L))
-    assertEquals(listOf(Type.NIGHT_START), types(run(snap(engineOn = listOf(day - 3600, day + 2 * 3600)), st)))
+    assertEquals(listOf(Type.NIGHT_START), types(run(snap(engineOn = listOf(day - 3600, day + 2 * 3600)), st, noEngine)))
+  }
+
+  @Test fun nightStartFoldsIntoTheEngineAlert() {
+    val day = 86_400L * 20_000
+    assertTrue(run(snap(engineOn = listOf(day + 2 * 3600)), State(lastEngineOnSeen = day)).first.isEmpty())
+  }
+
+  // ---- engine on/off and driving alarm events ----
+  private fun ev(title: String, epoch: Long, kind: String = if (title.startsWith("Engine")) "engine" else "alarm") =
+    CarEvent("id-$epoch", kind, title, epoch, 12.9, 77.6)
+
+  @Test fun turningAlertsOnDoesNotReplayHistory() {
+    val (fresh, seen) = Alerts.newEvents(listOf(ev("Engine on", 1_000)), Alerts.EventSeen(), nowS = 2_000)
+    assertTrue(fresh.isEmpty())
+    assertEquals(2_000L, seen.baseline)
+  }
+
+  @Test fun eachEventIsNotifiedOnceWhetherPushedOrListed() {
+    var seen = Alerts.EventSeen(baseline = 1_000)
+    val pushed = ev("Engine on", 1_500)
+    val (a, s1) = Alerts.newEvents(listOf(pushed), seen, nowS = 1_600); seen = s1
+    assertEquals(listOf(pushed), a)
+    // the event list later has the same event (its id may differ) plus a new alarm
+    val listed = listOf(pushed.copy(id = "server-id"), ev("Sudden brake", 1_700), ev("Engine on", 900))
+    val (b, _) = Alerts.newEvents(listed, seen, nowS = 1_800)
+    assertEquals(listOf("Sudden brake"), b.map { it.title }) // the 900 one is from before alerts were on
+  }
+
+  @Test fun oldEventsAfterALongGapAreSkippedAndOrderIsOldestFirst() {
+    val now = 100_000L
+    val seen = Alerts.EventSeen(baseline = 1)
+    val (fresh, _) = Alerts.newEvents(listOf(ev("Engine off", now - 60), ev("Engine on", now - 600), ev("Engine on", now - 13 * 3600)), seen, now)
+    assertEquals(listOf(now - 600, now - 60), fresh.map { it.epoch })
+  }
+
+  @Test fun eventTypes() {
+    assertEquals(Type.ENGINE, Alerts.typeOf(ev("Engine off", 1)))
+    assertEquals(Type.DRIVING, Alerts.typeOf(ev("Over the speed limit", 1)))
   }
 
   @Test fun signedOutAnnouncedOnceAndNothingElse() {

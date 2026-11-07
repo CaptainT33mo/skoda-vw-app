@@ -123,6 +123,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
       }
     }.getOrDefault(emptyList())
     Store.alertsOn = dev.openvw.data.Alerts.isOn(app); Store.alertTypes = dev.openvw.data.Alerts.enabled(app)
+    Store.alertsInstant = dev.openvw.data.Alerts.instant(app)
     dev.openvw.work.CarCheckWorker.schedule(app)
     Store.privacy = session.privacy
     Store.paintPick = session.paintPick
@@ -253,6 +254,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     session.verified = true
     busy = false; phase = Phase.LOADING
     loadData(); phase = Phase.READY; poll()
+    dev.openvw.work.CarWatchService.sync(getApplication())
   }
 
   /** Error text from a failed Cerence response ({message} / {error} / {errorCode}), or "". */
@@ -298,6 +300,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         session.verified = true
         busy = false; phase = Phase.LOADING
         loadData(); phase = Phase.READY; poll()
+        dev.openvw.work.CarWatchService.sync(getApplication())
       } catch (e: Exception) { fail(e.message ?: "Network error") }
     }
   }
@@ -429,6 +432,22 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     if (on && !dev.openvw.data.Alerts.isOn(ctx)) dev.openvw.data.Alerts.resetState(ctx)
     dev.openvw.data.Alerts.setOn(ctx, on); Store.alertsOn = on
     dev.openvw.work.CarCheckWorker.schedule(ctx)
+    dev.openvw.work.CarWatchService.sync(ctx)
+  }
+
+  /** Instant alerts: keep the live feed open in the background so engine / driving alerts arrive in seconds. */
+  fun setInstantAlerts(on: Boolean) {
+    val ctx = getApplication<Application>()
+    dev.openvw.data.Alerts.setInstant(ctx, on); Store.alertsInstant = on
+    dev.openvw.work.CarWatchService.sync(ctx)
+  }
+
+  /** Engine on/off and driving alarm notifications for events not notified yet (not for the demo car). */
+  private fun notifyEvents(events: List<CarEvent>) {
+    if (demo || events.isEmpty()) return
+    val ctx = getApplication<Application>()
+    if (!dev.openvw.data.Alerts.isOn(ctx)) return
+    viewModelScope.launch { runCatching { dev.openvw.work.CarEventAlerts.check(ctx, events, CarLook.name()) } }
   }
 
   fun setAlertType(t: dev.openvw.data.Alerts.Type, on: Boolean) {
@@ -497,7 +516,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
   }
 
   /** App opened / brought to the foreground: full refresh, widgets once, then the live push feed. */
-  fun onOpened() = acquireLive(HOLDER_PHONE)
+  fun onOpened() {
+    acquireLive(HOLDER_PHONE)
+    // the app is on screen: the one moment Android lets it (re)start the background watch
+    dev.openvw.work.CarWatchService.sync(getApplication())
+  }
 
   /** App left the foreground: drop the live connection unless Android Auto still shows it. */
   fun onBackground() = releaseLive(HOLDER_PHONE)
@@ -739,6 +762,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     refreshFailures = 0; refreshRetryAt = 0L
     stopLive() // holders stay: the phone UI / car screen pick the feed up again after sign-in
     session.clearAuth()
+    dev.openvw.work.CarWatchService.sync(getApplication()) // signed out: nothing to watch
     Store.live = false; Store.liveConnected = false
     phone = session.mobile
     busy = false
@@ -1709,6 +1733,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
       loc?.optDouble("latitude")?.takeIf { it != 0.0 && !it.isNaN() } ?: p.lat,
       loc?.optDouble("longitude")?.takeIf { it != 0.0 && !it.isNaN() } ?: p.lon, detail)
     Store.events = listOf(ev) + Store.events.filter { it.id != ev.id }
+    notifyEvents(listOf(ev))
     if (kind == "engine") {
       val on = title == "Engine on"
       Store.telemetry = Store.telemetry.copy(engineOn = on)
@@ -1783,6 +1808,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
       // name the places of the latest events (most hit the cache from trip endpoints)
       withContext(Dispatchers.IO) { list.take(15).forEach { Places.lookup(ctx, it.lat, it.lon) } }
       Store.events = list.toList()
+      notifyEvents(list) // anything the live feed missed (or everything, when only the 15-minute check runs)
     }
     // the telemetry endpoint has no position; the newest event (usually "engine off") marks where the car is
     Log.d(TAG, "activity: trips=${Store.trips.size} events=${Store.events.size} withLocation=${Store.events.count { it.lat != 0.0 }} " +
@@ -1982,5 +2008,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private const val MAX_WINDOW = 2_592_000L // Cerence: "The max query time range is 2592000" (30 days)
     const val HOLDER_PHONE = "phone"
     const val HOLDER_CAR = "android-auto"
+    const val HOLDER_ALERTS = "instant-alerts"
   }
 }

@@ -83,6 +83,54 @@ object CarNotifications {
       })
   }
 
+  private const val CH_ENGINE = "car_engine"
+  private const val CH_DRIVING = "car_driving"
+
+  private fun eventChannels(ctx: Context) {
+    if (Build.VERSION.SDK_INT < 26) return
+    val nm = ctx.getSystemService(NotificationManager::class.java)
+    if (nm.getNotificationChannel(CH_ENGINE) == null)
+      nm.createNotificationChannel(NotificationChannel(CH_ENGINE, "Engine on / off", NotificationManager.IMPORTANCE_HIGH).apply {
+        description = "When your car's engine is switched on or off"
+      })
+    if (nm.getNotificationChannel(CH_DRIVING) == null)
+      nm.createNotificationChannel(NotificationChannel(CH_DRIVING, "Driving alerts", NotificationManager.IMPORTANCE_HIGH).apply {
+        description = "Sudden braking, sharp turns, speeding and other alarms from your car"
+      })
+  }
+
+  /** "Engine on" / "Sudden brake" with the car, time, place and detail; tapping opens Updates. */
+  fun postEvent(ctx: Context, e: dev.openvw.data.CarEvent, carName: String, place: String?, night: Boolean) {
+    if (!canPost(ctx)) return
+    eventChannels(ctx)
+    val time = java.text.SimpleDateFormat("h:mm a", java.util.Locale.ENGLISH).format(java.util.Date(e.epoch * 1000))
+    val engine = e.kind == "engine"
+    val title = if (night) "${e.title} at night" else e.title
+    val text = listOfNotNull(carName.ifBlank { null }, time, place?.ifBlank { null }?.let { if (engine) "at $it" else "near $it" }, e.detail.ifBlank { null })
+      .joinToString(" · ")
+    val big = if (night) "$text\nThe engine was switched on during the night. If this wasn't you or someone you know, check on your car." else text
+    val open = PendingIntent.getActivity(
+      ctx, 2,
+      Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        .putExtra(dev.openvw.ui.NavRequest.EXTRA, dev.openvw.ui.Screen.ALERTS.name),
+      PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+    )
+    val n = NotificationCompat.Builder(ctx, if (engine) CH_ENGINE else CH_DRIVING)
+      .setSmallIcon(R.drawable.ic_carpulse_mark)
+      .setContentTitle(title)
+      .setContentText(text)
+      .setStyle(NotificationCompat.BigTextStyle().bigText(big))
+      .setWhen(e.epoch * 1000).setShowWhen(true)
+      .setPriority(NotificationCompat.PRIORITY_HIGH)
+      .setCategory(if (engine) NotificationCompat.CATEGORY_STATUS else NotificationCompat.CATEGORY_EVENT)
+      .setGroup("car_events")
+      .setContentIntent(open)
+      .setAutoCancel(true)
+      .build()
+    @Suppress("MissingPermission") // checked in canPost()
+    NotificationManagerCompat.from(ctx).notify(Alerts.eventKey(e).hashCode(), n)
+  }
+
   fun post(ctx: Context, a: Alerts.Alert) {
     if (!canPost(ctx)) return
     channel(ctx)

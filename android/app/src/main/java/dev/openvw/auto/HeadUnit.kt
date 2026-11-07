@@ -29,8 +29,12 @@ internal class HeadUnit(private val ctx: CarContext, private val onChange: () ->
   @Volatile var odometerKm: Int? = null; private set
   private var speedAt = 0L
 
-  /** Speed is only trusted for a few seconds: a stale reading must not freeze on screen. */
-  val freshSpeedKmh: Int? get() = speedKmh?.takeIf { SystemClock.elapsedRealtime() - speedAt < 4_000 }
+  /**
+   * Speed is only trusted for a few seconds: a stale reading must not freeze on screen. A standstill is kept for
+   * a minute, because cars stop sending speed updates while the value doesn't change, and a reading that keeps
+   * appearing and vanishing would make the dashboard flicker between "0" and "—".
+   */
+  val freshSpeedKmh: Int? get() = speedKmh?.takeIf { SystemClock.elapsedRealtime() - speedAt < if (it == 0) 60_000 else 4_000 }
 
   private var info: CarInfo? = null
   private var running = false

@@ -5,6 +5,12 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Car alerts (only if the owner turns them on in My car → Owner info) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Instant car alerts (optional): keep the car's live feed open in the background (work/CarWatchService).
+         connectedDevice = a network connection to the owner's car; CHANGE_NETWORK_STATE is that type's prerequisite. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- Android Auto only: read speed / fuel level / odometer from the car's head unit (asked for in the car) -->
     <uses-permission android:name="com.google.android.gms.permission.CAR_SPEED" />
     <uses-permission android:name="com.google.android.gms.permission.CAR_FUEL" />
@@ -36,6 +42,20 @@
         <meta-data
             android:name="androidx.car.app.minCarApiLevel"
             android:value="1" />
+
+        <service
+            android:name=".work.CarWatchService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice" />
+
+        <receiver
+            android:name=".work.CarWatchBoot"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
 
         <service
             android:name=".auto.CarPulseCarAppService"

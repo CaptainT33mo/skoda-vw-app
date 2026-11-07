@@ -69,6 +69,7 @@ fun VehicleScreen(
   onSystemTheme: (Boolean) -> Unit = {},
   onAlerts: (Boolean) -> Unit = {},
   onAlertType: (dev.openvw.data.Alerts.Type, Boolean) -> Unit = { _, _ -> },
+  onInstantAlerts: (Boolean) -> Unit = {},
 ) {
   var tab by remember { mutableStateOf(initialTab) }
   var ownerEditor by remember { mutableStateOf(false) }
@@ -224,14 +225,21 @@ fun VehicleScreen(
       val ctx = androidx.compose.ui.platform.LocalContext.current
       SettingToggle(
         "Car alerts",
-        if (Store.alertsOn) "Checks your car about every 15 minutes, even when the app is closed"
-        else "Battery drain, check-engine light, night-time starts and low fuel",
+        if (Store.alertsOn) "Notifications about your car, even when the app is closed"
+        else "Engine on / off, driving alerts, battery, check-engine light and low fuel",
         Store.alertsOn,
       ) { on ->
         if (on && !dev.openvw.work.CarNotifications.canPost(ctx) && android.os.Build.VERSION.SDK_INT >= 33)
           askNotify.launch(android.Manifest.permission.POST_NOTIFICATIONS)
         else onAlerts(on)
       }
+      if (Store.alertsOn) SettingToggle(
+        "Instant alerts",
+        if (Store.alertsInstant) "Engine and driving alerts within seconds. Keeps a live connection to your car, with a small ongoing notification"
+        else "Off: alerts come with the check about every 15 minutes",
+        Store.alertsInstant,
+        onInstantAlerts,
+      )
       if (Store.alertsOn) dev.openvw.data.Alerts.Type.entries.forEach { t ->
         SettingToggle(t.title, t.description, t in Store.alertTypes) { onAlertType(t, it) }
       }

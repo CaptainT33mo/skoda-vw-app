@@ -62,38 +62,44 @@ internal class HealthScreen(ctx: CarContext, private val hu: HeadUnit) : LiveScr
     val t = Store.telemetry
     val rows = mutableListOf<Row>()
 
-    rows += Row.Builder().setTitle(if (d.milOn) "Check-engine light ON" else "Check-engine light off")
+    // fixed row titles and always 4 rows, so live updates stay refreshes (see DashScreen)
+    rows += Row.Builder().setTitle("Check-engine light")
       .addText(
-        if (d.milOn) colored("Driven ${t.distanceWithMil ?: 0} km with it on — get it checked", CarColor.RED)
-        else colored("No engine fault reported", CarColor.GREEN),
+        if (d.milOn) colored("ON — driven ${t.distanceWithMil ?: 0} km with it on, get it checked", CarColor.RED)
+        else colored("Off — no engine fault reported", CarColor.GREEN),
       ).build()
 
+    val battery = Row.Builder().setTitle("Battery")
     d.batteryV?.let { v ->
       val engineOn = d.rpm != null
       val ok = GaugeArt.batteryColor(v, engineOn) == GaugeArt.GREEN
-      rows += Row.Builder().setTitle(text("Battery %.1f V".format(Locale.US, v), "%.1f V".format(Locale.US, v)))
-        .addText(
-          if (ok) colored(if (engineOn) "Charging normally" else "Healthy at rest", CarColor.GREEN)
-          else colored(if (engineOn) "Check charging system" else "Low — may struggle to start", CarColor.YELLOW),
-        ).build()
-    }
+      battery.addText(text("%.1f V".format(Locale.US, v)))
+      battery.addText(
+        if (ok) colored(if (engineOn) "Charging normally" else "Healthy at rest", CarColor.GREEN)
+        else colored(if (engineOn) "Check charging system" else "Low — may struggle to start", CarColor.YELLOW),
+      )
+    } ?: battery.addText(text("Not reported yet", "—"))
+    rows += battery.build()
 
     val temps = listOfNotNull(d.coolantC?.let { "Coolant $it°C" }, d.intakeC?.let { "Intake $it°C" })
-    if (temps.isNotEmpty()) rows += Row.Builder().setTitle(text(temps.joinToString(" · "), temps.first()))
+    rows += Row.Builder().setTitle("Temperatures")
+      .addText(if (temps.isEmpty()) text("—") else text(temps.joinToString(" · "), temps.first()))
       .addText(
-        when (GaugeArt.coolantColor(d.coolantC)) {
-          GaugeArt.BLUE -> text("Engine warming up")
-          GaugeArt.GREEN -> colored("Normal operating temperature", CarColor.GREEN)
+        when {
+          d.coolantC == null -> text("Not reported yet")
+          GaugeArt.coolantColor(d.coolantC) == GaugeArt.BLUE -> text("Engine warming up")
+          GaugeArt.coolantColor(d.coolantC) == GaugeArt.GREEN -> colored("Normal operating temperature", CarColor.GREEN)
           else -> colored("Running hot — pull over safely if it keeps rising", CarColor.RED)
         },
       ).build()
 
     val dg = Store.dongle
-    val dongle = Row.Builder().setTitle(text(if (d.feedOn) "Telematics: live" else "Telematics: ${dg.status.ifBlank { "idle" }}", "Telematics"))
     val sub = listOfNotNull(
       dg.signal.takeIf { it > 0 }?.let { "signal $it" },
       t.distanceSinceDtc?.let { "%,d km since diagnostics reset".format(Locale.US, it) },
     )
+    val dongle = Row.Builder().setTitle("Telematics")
+      .addText(text(if (d.feedOn) "Live" else dg.status.ifBlank { "Idle" }.lowercase().replaceFirstChar { it.uppercase() }))
     if (sub.isNotEmpty()) dongle.addText(text(sub.joinToString(" · "), sub.first()))
     rows += dongle.build()
 
@@ -116,11 +122,11 @@ internal class MoreScreen(ctx: CarContext, private val hu: HeadUnit) : LiveScree
     if (hu.supported) {
       val missing = hu.missingPermissions()
       list.addItem(
-        if (missing.isEmpty()) Row.Builder().setTitle("Car sensors: on")
-          .addText(text("Speed, fuel and odometer come straight from your car when it shares them", "Speed & fuel from car"))
+        if (missing.isEmpty()) Row.Builder().setTitle("Car sensors")
+          .addText(text("On: speed, fuel and odometer come straight from your car when it shares them", "On"))
           .build()
-        else Row.Builder().setTitle("Use your car's own sensors")
-          .addText(text("Live speed & fuel from the car — tap, then allow on your phone", "Tap, then allow on phone"))
+        else Row.Builder().setTitle("Car sensors")
+          .addText(text("Off: tap, then allow on your phone, for live speed & fuel from the car", "Tap, then allow on phone"))
           .setOnClickListener {
             carContext.requestPermissions(missing) { _, _ -> hu.restart(); invalidate() }
           }
