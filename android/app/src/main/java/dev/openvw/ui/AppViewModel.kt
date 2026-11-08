@@ -124,6 +124,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }.getOrDefault(emptyList())
     Store.alertsOn = dev.openvw.data.Alerts.isOn(app); Store.alertTypes = dev.openvw.data.Alerts.enabled(app)
     Store.alertsInstant = dev.openvw.data.Alerts.instant(app)
+    Store.instantAvailable = dev.openvw.work.CarWatchService.available(app)
     dev.openvw.work.CarCheckWorker.schedule(app)
     Store.privacy = session.privacy
     Store.paintPick = session.paintPick
@@ -192,10 +193,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             auth.optString("accessToken").takeIf { it.isNotEmpty() }?.let { session.token = it; session.refreshToken = auth.optString("refreshToken") }
           }
         }.onFailure { Log.w(TAG, "savwconnect bootstrap failed (continuing with Cerence login)", it) }
-        // Debug builds first try the savwconnect sign-in MySkoda Plus uses: one OTP gives the Skoda account (car
-        // colour, engine no., purchase date) and, through it, the telematics token. Only for numbers savwconnect
-        // already knows; anyone else (and every Play build) signs in through Cerence as before.
-        savwOtp = debuggable && runCatching { startSavwLogin(mob) }.onFailure { Log.w(TAG, "savw sign-in: start failed", it) }.getOrDefault(false)
+        // First the savwconnect sign-in MySkoda Plus uses: one OTP gives the Skoda account (car colour, engine no.,
+        // purchase date) and, through it, the telematics token. Some accounts get no SMS from Cerence's own OTP
+        // (below) yet sign in fine this way. Only for numbers savwconnect already knows; anyone else signs in
+        // through Cerence as before.
+        savwOtp = runCatching { startSavwLogin(mob) }.onFailure { Log.w(TAG, "savw sign-in: start failed", it) }.getOrDefault(false)
         if (savwOtp) { busy = false; phase = Phase.OTP; return@launch }
         // OTP login goes through Cerence, like the official MySkoda Connected app. The savwconnect
         // registerUser/verifyLoginOTP pair needs a loginId that some accounts never get (it comes back 0).
@@ -216,7 +218,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     return true
   }
 
-  /** The OTP on screen was sent by savwconnect (debug builds' single sign-in), not Cerence. */
+  /** The OTP on screen was sent by savwconnect (the single Skoda sign-in), not Cerence. */
   private var savwOtp = false
 
   /**

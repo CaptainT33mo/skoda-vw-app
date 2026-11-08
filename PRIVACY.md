@@ -11,7 +11,7 @@ can be checked.
 
 | Data | Why | Where it goes |
 |---|---|---|
-| Your mobile number and the SMS one-time password | To sign you in to your car's connected-car account | Cerence (the carmakers' telematics provider) |
+| Your mobile number and the SMS one-time password | To sign you in to your car's connected-car account | The carmaker's savwconnect.com server (the sign-in the MySkoda Plus app uses), or Cerence (the carmakers' telematics provider) when savwconnect doesn't know the number |
 | Sign-in tokens | To stay signed in | Stored on your phone only; not included in cloud backups |
 | Car identifiers (VIN, car ID, registration number), model, variant, colour | To find and show your car | Received from Cerence / the carmaker's server; stored on your phone |
 | Owner name and email from your car account | Shown on the Owner screen | Received from Cerence / the carmaker's server; stored on your phone |

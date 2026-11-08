@@ -83,9 +83,14 @@ class CarWatchService : Service() {
     private const val CHANNEL = "car_watch"
     private const val NOTIFICATION_ID = 7
 
+    /** Whether this build declares the service (all builds do now; kept so a build can drop it from the manifest). */
+    fun available(ctx: Context): Boolean = runCatching {
+      ctx.packageManager.getServiceInfo(android.content.ComponentName(ctx, CarWatchService::class.java), 0); true
+    }.getOrDefault(false)
+
     fun shouldRun(ctx: Context): Boolean {
       val s = Session(ctx)
-      return Alerts.isOn(ctx) && Alerts.instant(ctx) && s.loggedIn && !s.demo && CarNotifications.canPost(ctx)
+      return available(ctx) && Alerts.isOn(ctx) && Alerts.instant(ctx) && s.loggedIn && !s.demo && CarNotifications.canPost(ctx)
     }
 
     /**
@@ -94,6 +99,7 @@ class CarWatchService : Service() {
      */
     fun sync(ctx: Context) {
       val i = Intent(ctx, CarWatchService::class.java)
+      if (!available(ctx)) return
       if (shouldRun(ctx)) runCatching { ContextCompat.startForegroundService(ctx, i) }
         .onFailure { Log.w(TAG, "watch: start refused (${it.javaClass.simpleName})") }
       else ctx.stopService(i)

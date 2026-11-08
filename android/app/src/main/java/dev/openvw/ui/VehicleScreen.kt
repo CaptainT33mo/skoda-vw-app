@@ -225,7 +225,8 @@ fun VehicleScreen(
       val ctx = androidx.compose.ui.platform.LocalContext.current
       SettingToggle(
         "Car alerts",
-        if (Store.alertsOn) "Notifications about your car, even when the app is closed"
+        if (Store.alertsOn) (if (Store.instantAvailable) "Notifications about your car, even when the app is closed"
+          else "Checks your car about every 15 minutes, even when the app is closed")
         else "Engine on / off, driving alerts, battery, check-engine light and low fuel",
         Store.alertsOn,
       ) { on ->
@@ -233,7 +234,7 @@ fun VehicleScreen(
           askNotify.launch(android.Manifest.permission.POST_NOTIFICATIONS)
         else onAlerts(on)
       }
-      if (Store.alertsOn) SettingToggle(
+      if (Store.alertsOn && Store.instantAvailable) SettingToggle(
         "Instant alerts",
         if (Store.alertsInstant) "Engine and driving alerts within seconds. Keeps a live connection to your car, with a small ongoing notification"
         else "Off: alerts come with the check about every 15 minutes",

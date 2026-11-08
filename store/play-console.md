@@ -40,7 +40,8 @@ Expected result: rated for everyone (3+ / Everyone).
 What the app actually does (see `PRIVACY.md`):
 
 - The developer runs **no server** and receives no user data.
-- The app sends the **mobile number** and one-time password to the carmaker's connected-car service (Cerence) to
+- The app sends the **mobile number** and one-time password to the carmaker's account server (savwconnect.com, as
+  MySkoda Plus does) or, for numbers it doesn't know, to the connected-car service (Cerence) to
   sign the user in, and receives the user's car data (identifiers, telemetry, trips, car location, owner
   name/email) from it.
 - It sends the **car's location** to Android's Geocoder (place names) and map-tile requests to Esri, and hands
@@ -79,15 +80,29 @@ Services, Firebase or ads libraries.
 
 ## Permissions
 
-No sensitive-permission declarations are needed. The release manifest contains:
+One declaration is needed: **foreground service** (below). The release manifest contains:
 
 - `INTERNET`, `ACCESS_NETWORK_STATE`: talking to the carmaker's servers.
 - `POST_NOTIFICATIONS`: Car alerts; asked at runtime only when the user turns alerts on.
 - `CAR_SPEED`, `CAR_FUEL`, `CAR_MILEAGE`: optional Android Auto car sensors, asked inside Android Auto.
 - `USE_BIOMETRIC`, `USE_FINGERPRINT`: App lock (added by the androidx.biometric library).
-- `WAKE_LOCK`, `RECEIVE_BOOT_COMPLETED`, `FOREGROUND_SERVICE`: added by WorkManager for the scheduled alert
-  check. The app runs **no foreground service** (the check never calls setForeground), so if Play asks about
-  foreground service types: none.
+- `WAKE_LOCK`, `RECEIVE_BOOT_COMPLETED`: WorkManager's 15-minute alert check, re-scheduled after a restart.
+- `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_CONNECTED_DEVICE`, `CHANGE_NETWORK_STATE`: **Instant alerts**
+  (since 1.1.1), a `connectedDevice` foreground service (`work/CarWatchService`). Declare it in **App content →
+  Foreground service permissions**:
+  - Type: **Connected device**
+  - Description: *When the owner turns on Car alerts and Instant alerts (My car → Settings), CarPulse keeps a live
+    network connection to the owner's car (its connected-car telematics unit, through the carmaker's server) so
+    engine on/off and driving alarms such as harsh braking and over-speeding arrive within seconds. A "Watching
+    your car" notification shows while it runs; turning either setting off, or signing out, stops it.*
+  - Impact if deferred or interrupted: *The owner would only learn about an engine start or a driving alarm on
+    their car at the next 15-minute background check, too late for security alerts such as an unexpected engine
+    start.*
+  - Video: a 30–60 s screen recording (YouTube unlisted or a Drive link anyone can open): My car → Settings →
+    Car alerts on (allow notifications) → Instant alerts on → the "Watching your car" notification → an
+    "Engine on" notification arriving when the car starts.
+  - Builds without this declaration approved can't be rolled out; `~/Desktop/CarPulse-1.1.1-without-instant-alerts.aab`
+    (same version) was kept as a fallback.
 
 No location, SMS, call log, contacts, background location or exact-alarm permissions.
 

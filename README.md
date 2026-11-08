@@ -29,8 +29,9 @@ If you own a VW and try it, please open an issue saying whether sign-in and live
 **Sign-in**
 - Pick **Skoda** or **Volkswagen**, enter the mobile number registered on your car's account, type the SMS OTP.
   The car list from the server then confirms the brand and finds your car's VIN, model and variant.
-- Uses the same Cerence OTP sign-in as the current official Skoda app, which also works for accounts the older
-  sign-in rejected ("LoginId is Required").
+- Signs in the way MySkoda Plus does (one OTP from savwconnect.com, which also brings the car's colour and engine
+  number). Numbers savwconnect doesn't know, or accounts it rejects ("LoginId is Required"), get Cerence's own
+  OTP sign-in instead, as in the MySkoda Connected app.
 - Sign-in renews itself before it expires. If the server refuses the renewal, the app asks for a new OTP instead
   of silently showing empty data.
 

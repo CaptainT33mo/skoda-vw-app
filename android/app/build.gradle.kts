@@ -22,8 +22,8 @@ android {
         applicationId = "tech.vibhor.carpulse"
         minSdk = 24
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 3
+        versionName = "1.1.1"
     }
 
     signingConfigs {
@@ -43,6 +43,15 @@ android {
             signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+        }
+        // The APK shared with testers outside Play (assembleSideload): the release build under its own app id
+        // ("CarPulse Beta"), so it installs next to the Play app: Play re-signs with Google's key, and a same-id APK
+        // signed with the upload key fails with "App not installed" while any trace of the Play install remains.
+        create("sideload") {
+            initWith(getByName("release"))
+            matchingFallbacks += "release"
+            applicationIdSuffix = ".beta"
+            versionNameSuffix = "-beta"
         }
     }
     compileOptions {

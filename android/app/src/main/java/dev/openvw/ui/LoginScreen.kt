@@ -27,6 +27,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.ime
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
@@ -62,20 +67,27 @@ import dev.openvw.theme.Red
 @Composable
 fun LoginScreen(vm: AppViewModel) {
   // The page keeps its full-screen layout when the keyboard opens: instead of squeezing everything into the space
-  // above the keyboard, the keyboard's height is added below the content and the page scrolls so the field and
-  // button sit right above it. The header just scrolls out of view and nothing is resized.
+  // above the keyboard, the keyboard's height is added below the content and the page scrolls just far enough
+  // that the form's bottom sits on the keyboard. The header scrolls only as far as needed; nothing is resized.
   val scroll = rememberScrollState()
   val imeOpen = WindowInsets.isImeVisible
-  LaunchedEffect(imeOpen, scroll.maxValue) { if (imeOpen) scroll.animateScrollTo(scroll.maxValue) }
+  val imeBottom = WindowInsets.ime.getBottom(LocalDensity.current)
+  var formBottom by remember { mutableIntStateOf(0) } // px from the top of the page to the form's bottom edge
   BoxWithConstraints(Modifier.fillMaxSize().background(Bg).statusBarsPadding()) {
     val pageHeight = maxHeight // measured without the keyboard: the layout never shrinks
+    val viewport = constraints.maxHeight
+    LaunchedEffect(imeOpen, imeBottom, formBottom, scroll.maxValue) {
+      if (imeOpen) scroll.animateScrollTo((formBottom - (viewport - imeBottom)).coerceIn(0, scroll.maxValue))
+    }
     Column(Modifier.fillMaxSize().verticalScroll(scroll).imePadding()) {
+      // Header and form stay together, centred in the page: with the form pinned to the bottom, tall screens (a
+      // foldable's cover screen) left a large empty gap between the welcome text and the form.
       Column(
         Modifier.fillMaxWidth().heightIn(min = pageHeight).padding(horizontal = 24.dp),
-        verticalArrangement = Arrangement.SpaceBetween,
+        verticalArrangement = Arrangement.Center,
       ) {
         Column {
-          Spacer(Modifier.height(56.dp))
+          Spacer(Modifier.height(32.dp))
           BrandBadge()
           Spacer(Modifier.height(20.dp))
           Text("Welcome to\nCarPulse", style = TextStyle(color = Ink, fontSize = 40.sp, fontWeight = FontWeight.Bold, letterSpacing = (-1.4).sp, lineHeight = 44.sp))
@@ -87,7 +99,7 @@ fun LoginScreen(vm: AppViewModel) {
           )
           Spacer(Modifier.height(32.dp))
         }
-        Column {
+        Column(Modifier.onGloballyPositioned { formBottom = (it.positionInParent().y + it.size.height).toInt() }) {
           BackHandler(enabled = vm.phase == Phase.OTP) { vm.backToPhone() }
           if (vm.phase == Phase.OTP) OtpStep(vm) else PhoneStep(vm)
           vm.message?.let { Text(it, style = TextStyle(color = if (it == "Code re-sent") Muted else Red, fontSize = 13.sp, fontWeight = FontWeight.SemiBold), modifier = Modifier.padding(top = 12.dp)) }
@@ -176,7 +188,8 @@ private fun OtpStep(vm: AppViewModel) {
       code = it.filter { c -> c.isDigit() }.take(6)
       if (code.length == 6) vm.verify(code)
     },
-    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+    // plain digits: the boxes show them anyway, and NumberPassword opens OnePlus/Oppo's full-screen "secure keyboard"
+    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
     modifier = Modifier.fillMaxWidth(),
     decorationBox = {
       Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
