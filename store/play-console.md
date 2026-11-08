@@ -90,7 +90,8 @@ One declaration is needed: **foreground service** (below). The release manifest 
 - `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_CONNECTED_DEVICE`, `CHANGE_NETWORK_STATE`: **Instant alerts**
   (since 1.1.1), a `connectedDevice` foreground service (`work/CarWatchService`). Declare it in **App content →
   Foreground service permissions**:
-  - Type: **Connected device**
+  - Type: **Connected device**, task **Other** (not "Continuous data transfer to an external device": the
+    service receives alerts from the car, it doesn't send data to it; not "Automotive key")
   - Description: *When the owner turns on Car alerts and Instant alerts (My car → Settings), CarPulse keeps a live
     network connection to the owner's car (its connected-car telematics unit, through the carmaker's server) so
     engine on/off and driving alarms such as harsh braking and over-speeding arrive within seconds. A "Watching
