@@ -2,7 +2,7 @@ package dev.openvw.auto
 
 import android.content.pm.PackageManager
 import android.os.SystemClock
-import android.util.Log
+import dev.openvw.data.Log
 import androidx.car.app.CarContext
 import androidx.car.app.hardware.CarHardwareManager
 import androidx.car.app.hardware.common.CarValue

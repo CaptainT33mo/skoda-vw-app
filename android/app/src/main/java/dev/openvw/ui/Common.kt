@@ -91,7 +91,8 @@ fun CarPicture(colour: String, model: String, modifier: Modifier = Modifier, ali
   androidx.compose.foundation.layout.BoxWithConstraints(modifier) {
     val px = with(androidx.compose.ui.platform.LocalDensity.current) { maxWidth.roundToPx() }.coerceAtLeast(64)
     val pick = dev.openvw.data.Store.paintPick
-    val bmp = androidx.compose.runtime.remember(colour, model, px, pick) { dev.openvw.data.CarLook.bitmap(colour, px, model).asImageBitmap() }
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val bmp = androidx.compose.runtime.remember(colour, model, px, pick) { dev.openvw.data.CarLook.bitmap(ctx, colour, px, model).asImageBitmap() }
     androidx.compose.foundation.Image(bmp, "Your ${dev.openvw.data.CarLook.name(model)}", Modifier.matchParentSize(),
       contentScale = androidx.compose.ui.layout.ContentScale.Fit, alignment = alignment)
   }

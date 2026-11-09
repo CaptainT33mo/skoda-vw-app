@@ -20,14 +20,14 @@ class RawLogTest {
     "notifications" to mapOf("sms" to listOf("+919800000000")),
     "carVin" to "x", "drivingTime" to 1234, "userID" to 4242424, "loginId" to 5353535,
     "userInfo" to mapOf("name" to "Asha Rao", "primaryMailID" to "FEB959B7D4642FCB", "primaryContact" to "6A9A67DA2E5C", "drivingLicence" to "KA0120240001"),
-    "vehicle" to listOf(mapOf("color" to "Tornado Red Dual Tone", "registeredOwner" to "Asha Rao", "telematics_FirstName" to "Asha", "telematics_Name" to "Asha R")),
+    "vehicle" to listOf(mapOf("color" to "Tornado Red Dual Tone", "engineNo" to "DZW 027999", "chassisNumber" to "CH-1", "registeredOwner" to "Asha Rao", "telematics_FirstName" to "Asha", "telematics_Name" to "Asha R")),
     "events" to listOf(mapOf("type" to "alarm", "name" to "Sudden Brake")),
   )
 
   @Test fun identifiersAndCoordinatesAreMasked() {
     val out = RawLog.render(RawLog.redact(payload))
     listOf("TMBJB9NW1P0000000", "MEXBPLPB0AA000000", "860000000000001", "860000000000002", "+919800000000", "4242424", "5353535",
-      "KA01AB1234", "+919876543210", "a@b.c", "12.97", "77.6", "Asha", "FEB959B7D4642FCB", "6A9A67DA2E5C", "KA0120240001").forEach {
+      "KA01AB1234", "+919876543210", "a@b.c", "12.97", "77.6", "Asha", "FEB959B7D4642FCB", "6A9A67DA2E5C", "KA0120240001", "DZW 027999", "CH-1").forEach {
       assertFalse("leaked $it in $out", out.contains(it))
     }
   }

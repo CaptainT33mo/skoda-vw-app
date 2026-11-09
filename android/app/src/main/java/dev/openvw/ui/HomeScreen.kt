@@ -184,7 +184,7 @@ fun HomeScreen(onGo: (Screen) -> Unit, onOwner: () -> Unit, playKey: Int, onShow
     ) {
       Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
         Text("ODOMETER", style = TextStyle(color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.6.sp))
-        Text("Total distance", style = TextStyle(color = Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold))
+        Text(if (Store.odometerFromTrip) "At the end of your last trip" else "Total distance", style = TextStyle(color = Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold))
       }
       if (odo == null) {
         Text("-- km", style = TextStyle(color = Ink, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold).merge(Tnum))

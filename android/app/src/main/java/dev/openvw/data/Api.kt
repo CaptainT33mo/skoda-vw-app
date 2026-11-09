@@ -26,6 +26,13 @@ object Api {
 
   // ---------- low level ----------
   private fun reqEx(method: String, urlStr: String, body: String?, auth: String?): HttpRes {
+    val t0 = System.nanoTime()
+    return reqOnce(method, urlStr, body, auth).also { r ->
+      Diag.api(method, urlStr, r.code, (System.nanoTime() - t0) / 1_000_000, r.text) // for "Report a problem"
+    }
+  }
+
+  private fun reqOnce(method: String, urlStr: String, body: String?, auth: String?): HttpRes {
     val c = (URL(urlStr).openConnection() as HttpURLConnection).apply {
       requestMethod = method
       connectTimeout = 15000

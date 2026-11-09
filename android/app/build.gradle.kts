@@ -22,8 +22,8 @@ android {
         applicationId = "tech.vibhor.carpulse"
         minSdk = 24
         targetSdk = 36
-        versionCode = 3
-        versionName = "1.1.1"
+        versionCode = 4
+        versionName = "1.1.2"
     }
 
     signingConfigs {
@@ -108,6 +108,7 @@ dependencies {
   debugImplementation(libs.androidx.compose.ui.test.manifest)
 
   // Local tests: jUnit, coroutines, Android runner
+  testImplementation("org.json:json:20240303") // real org.json for JVM unit tests (Android's is a stub there)
   testImplementation(libs.junit)
   testImplementation(libs.kotlinx.coroutines.test)
 

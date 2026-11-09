@@ -110,11 +110,17 @@ object CarLook {
     else -> m.lowercase().replaceFirstChar { it.uppercase() }
   }
 
-  /** Every paint can be drawn now that the car art is CarPulse's own (no per-model photo sets). */
+  /** Every paint can be shown: a photo when the model has one in that paint, else the drawn car in that paint. */
   fun paints(model: String = current()): List<Paint> = Paint.entries
 
   /** Fallback when the account colour is unknown or unrecognised. */
   private fun fallback(model: String) = Paint.WHITE
+
+  /** The paint a colour name means ("Tornado Red Dual Tone" → RED), or null when no word is recognised. */
+  fun paintOf(colour: String): Paint? {
+    val c = colour.lowercase()
+    return words.mapNotNull { (re, p) -> re.find(c)?.let { it.range.first to p } }.minByOrNull { it.first }?.second
+  }
 
   /** The first colour word wins: "Candy White Deep/Black" is a white car with a black roof. */
   fun paint(colour: String, model: String = current()): Paint {
@@ -144,9 +150,16 @@ object CarLook {
     Paint.YELLOW -> 0xE2B414
   }
 
-  /** The car illustration, [widthPx] wide, in the account's (or the owner's picked) colour. */
-  fun bitmap(colour: String, widthPx: Int, model: String = current()): android.graphics.Bitmap =
-    CarArt.bitmap(body(model), rgb(colour, model), widthPx)
+  /**
+   * The car, [widthPx] wide, in the account's (or the owner's picked) colour: a real picture of that model, year,
+   * variant and paint when the app has one (CarPhotos), else the drawn car.
+   */
+  fun bitmap(ctx: android.content.Context, colour: String, widthPx: Int, model: String = current()): android.graphics.Bitmap {
+    val pick = Paint.entries.firstOrNull { it.name == Store.paintPick }
+    val year = Store.vehicle.modelYear.trim().take(4).toIntOrNull()
+    return CarPhotos.bitmap(ctx, model, colour, year, pick, widthPx)
+      ?: CarArt.bitmap(body(model), rgb(colour, model), widthPx)
+  }
 }
 
 data class VehicleInfo(
@@ -219,11 +232,21 @@ data class Trip(
   val endLon: Double = 0.0,
   val alarms: List<Pair<String, Int>>? = null, // every driving alarm on the trip (label, count); null = not reported
   val tags: List<String> = emptyList(),         // all of the trip's tags; [type] is the first
+  val tankL: Double = 50.0,                     // the car's fuel tank (Brand.tankLitres), for mileage
 ) {
-  /** Litres burned, from the fuel-% drop × the default 50 L tank (telematics reports percent only). */
-  val fuelUsedL: Double get() = (startFuelPct - endFuelPct).coerceAtLeast(0) / 100.0 * 50.0
-  /** Measured mileage for this trip (km/L); 0 = not computable (fuel % didn't change). */
+  /** Litres burned: the fuel-% drop × the car's tank (telematics reports fuel in whole percent only). */
+  val fuelUsedL: Double get() = (startFuelPct - endFuelPct).coerceAtLeast(0) / 100.0 * tankL
+  /** Estimated mileage for this trip (km/L); 0 = not computable (fuel % didn't change). */
   val mileage: Double get() = if (fuelUsedL > 0 && km > 0) km / fuelUsedL else 0.0
+  /**
+   * What the mileage could really be: each fuel reading is a whole percent (rounded), so the true drop is within
+   * ±1 % of the reported one. Null when not computable; the upper end is null when the drop was a single percent.
+   */
+  val mileageRange: Pair<Double, Double?>? get() {
+    val drop = (startFuelPct - endFuelPct).takeIf { it > 0 && km > 0 } ?: return null
+    fun at(pct: Int) = km / (pct / 100.0 * tankL)
+    return at(drop + 1) to (if (drop > 1) at(drop - 1) else null)
+  }
 }
 
 /** A trip's actual GPS path and the events along it (GET /api/v1/trip/{id}), for the trip map. */

@@ -46,7 +46,8 @@ import java.util.Locale
 object FuelCalc {
   const val MILEAGE = 13.0      // km/l — conservative mixed driving baseline
   const val DEFAULT_PRICE = 105.0 // ₹/L — avg Bengaluru petrol over the ownership period
-  const val TANK_L = 50.0       // default tank size used when exact model value is unavailable
+  /** The current car's tank in litres (by model; 50 L when the model is unknown). */
+  val TANK_L: Double get() = dev.openvw.data.Brand.tankLitres(dev.openvw.data.Store.vehicle.model + " " + dev.openvw.data.Store.vehicle.variant)
 
   val custom: Boolean get() = dev.openvw.data.Store.fuelPrice > 0
   val AVG_PRICE: Double get() = if (custom) dev.openvw.data.Store.fuelPrice else DEFAULT_PRICE

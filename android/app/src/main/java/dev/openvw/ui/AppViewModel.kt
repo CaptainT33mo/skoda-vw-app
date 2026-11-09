@@ -1,7 +1,7 @@
 package dev.openvw.ui
 
 import android.app.Application
-import android.util.Log
+import dev.openvw.data.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -88,6 +88,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
    * Read with: adb logcat -s CarPulse | grep raw
    */
   private fun dump(label: String, v: Any?) {
+    dev.openvw.data.Diag.payload(label, v) // always: the latest of each kind goes into "Report a problem"
     if (v == null || !(debuggable || Log.isLoggable(TAG, Log.VERBOSE))) return
     val shape = RawLog.shape(v)
     if (dumpedShapes[label] == shape) return
@@ -111,6 +112,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
   private var accountOwner = Repo.owner
 
   init {
+    dev.openvw.data.Diag.init(app)
+    Store.shakeToReport = session.shakeToReport
     phone = session.mobile
     Store.brand = Brand.of(session.brand) ?: Brand.SKODA
     Store.savedWorkshops = dev.openvw.data.SavedWorkshops.load(app)
@@ -354,6 +357,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
   private suspend fun loadUserCar() {
     val r = Api.userCars(session.teleToken)
     val arr = r.optJSONArray("cars")
+    dev.openvw.data.Diag.payload("cars", r.toPlain())
     Log.d(TAG, "cerence cars: status=${r.opt("_status")} count=${arr?.length()} " +
       "carKeys=${arr?.optJSONObject(0)?.keys()?.asSequence()?.toList()}")
     if (arr == null || arr.length() == 0) return
@@ -436,6 +440,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     dev.openvw.work.CarCheckWorker.schedule(ctx)
     dev.openvw.work.CarWatchService.sync(ctx)
   }
+
+  /** Settings: shaking the phone offers "Report a problem?" (MainActivity listens while the app is on screen). */
+  fun setShakeToReport(on: Boolean) { session.shakeToReport = on; Store.shakeToReport = on }
 
   /** Instant alerts: keep the live feed open in the background so engine / driving alerts arrive in seconds. */
   fun setInstantAlerts(on: Boolean) {
@@ -1343,6 +1350,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         "vehicleOdometer", "VehicleOdometer", "totalDistance", "TotalDistance",
       )
       if (odoFromProfile > 0) {
+        Store.odometerFromTrip = false
         Store.telemetry = Store.telemetry.copy(odometerKm = odoFromProfile)
       }
       session.vin = vin
@@ -1629,13 +1637,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
       val pct = if (n in 0.0..1.0) (n * 100.0) else n
       pct.toInt().coerceIn(0, 100)
     } ?: old.fuelPct
-    val odometer = gi(
+    val liveOdo = (gi(
       "Odometer", "odometer", "VehicleOdometer", "OdometerReading", "Mileage", "TotalDistance",
       "odometerKm", "totalOdometer", "totalMileage", "tripOdometer", "totalDistanceKm", "vehicleOdo", "odo",
     ) ?: findByFragment(
       fragments = listOf("odometer", "mileage"),
       excludes = listOf("fuel", "trip", "since", "dtc", "mil", "engine", "avg", "average"),
-    ) ?: old.odometerKm
+    ))?.takeIf { it > 0 } // 0 = the dongle can't read it on this car
+    if (liveOdo != null) Store.odometerFromTrip = false
+    val odometer = liveOdo ?: old.odometerKm
     // Engine ON/OFF (telemetry.engine), as the official app reads it (CarStatusParser): OFF = parked, whatever the
     // telemetry still says — Speed/EngineSpeed keep their last value from the end of the drive.
     val carStatus = sequenceOf(tj, t, t.optJSONObject("carStatus"), t.optJSONObject("data"))
@@ -1758,6 +1768,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     // ---- trips ----
     Api.trips(session.carId, session.teleToken).optJSONArray("trips")?.takeIf { it.length() > 0 }?.let { arr ->
       dump("trip", arr.optJSONObject(0)?.toPlain())
+      dev.openvw.data.Diag.payload("trips (newest 5 of ${arr.length()})", (0 until minOf(5, arr.length())).map { jsonPlain(arr.opt(it)) })
       val alarmKeys = sortedSetOf<String>(); val tagSet = sortedSetOf<String>()
       for (i in 0 until arr.length()) arr.optJSONObject(i)?.let { tr ->
         tr.optJSONObject("eventCount")?.keys()?.forEach { alarmKeys += it }
@@ -1791,6 +1802,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
       }
       list.sortByDescending { it.epoch }
       Store.trips = list
+      // Some cars (seen on a VW Virtus) send no odometer in their live data, but each trip carries the reading at its
+      // end: show the newest one, marked as such, until (if ever) a live reading arrives.
+      if (Store.telemetry.odometerKm == null || Store.odometerFromTrip)
+        list.firstOrNull { it.endOdo > 0 }?.let { last ->
+          Store.telemetry = Store.telemetry.copy(odometerKm = last.endOdo.toInt()); Store.odometerFromTrip = true
+          Log.d(TAG, "odometer: none in live data, using the last trip's end reading")
+        }
       val real = if (sumFuelL > 0) sumKm / sumFuelL else 0.0
       Store.drive = DriveStats(count, if (count > 0) scoreSum / count else 0, maxSp, idle, brakes, real, totKm, totMin, wTrips, wKm, wMin)
     }
@@ -1935,7 +1953,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
       maxSpeed = tr.optInt("maxSpeed"), avgSpeed = tr.optInt("speed"),
       startOdo = tr.optJSONObject("startOdometer")?.optDouble("value") ?: 0.0,
       endOdo = tr.optJSONObject("endOdometer")?.optDouble("value") ?: 0.0,
-      startFuelPct = sf.toInt(), endFuelPct = ef.toInt(),
+      startFuelPct = sf.toInt(), endFuelPct = ef.toInt(), tankL = FuelCalc.TANK_L,
       brakes = tr.optJSONObject("eventCount")?.optInt("sudden brake") ?: 0,
       startLat = sl?.optDouble("latitude") ?: 0.0, startLon = sl?.optDouble("longitude") ?: 0.0,
       endLat = el?.optDouble("latitude") ?: 0.0, endLon = el?.optDouble("longitude") ?: 0.0,

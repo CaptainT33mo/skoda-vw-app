@@ -117,15 +117,22 @@ fun TripDetailScreen(
           Text("MILEAGE (THIS TRIP)", style = label())
           Spacer(Modifier.height(4.dp))
           Text(
-            if (trip.mileage > 0) "%.1f km/l".format(trip.mileage) else "—",
+            if (trip.mileage > 0) "≈ %.1f km/l".format(trip.mileage) else "—",
             style = TextStyle(color = Ink, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold).merge(Tnum),
           )
+          // fuel comes in whole percent, so say how wide the honest answer is
+          trip.mileageRange?.let { (lo, hi) ->
+            Text(
+              if (hi != null) "Somewhere between %.1f and %.1f".format(lo, hi) else "At least %.1f".format(lo),
+              style = TextStyle(color = Muted, fontSize = 12.sp).merge(Tnum),
+            )
+          }
         }
         Column(horizontalAlignment = Alignment.End) {
           Text("FUEL USED", style = label())
           Spacer(Modifier.height(4.dp))
           val delta = trip.startFuelPct - trip.endFuelPct
-          Text(if (delta > 0) "$delta%" else "Refuelled", style = TextStyle(color = Ink, fontSize = 20.sp, fontWeight = FontWeight.Bold).merge(Tnum))
+          Text(if (delta > 0) "$delta%" else if (delta == 0) "Under 1%" else "Refuelled", style = TextStyle(color = Ink, fontSize = 20.sp, fontWeight = FontWeight.Bold).merge(Tnum))
           Text("${trip.startFuelPct}% → ${trip.endFuelPct}%", style = TextStyle(color = Muted, fontSize = 11.sp).merge(Tnum))
         }
       }
@@ -186,7 +193,7 @@ fun TripDetailScreen(
       }
 
       Text(
-        "Mileage is estimated from the fuel-level drop (telematics reports percent, not litres), so single short trips are rough; the Statistics average is more reliable.",
+        "Mileage is estimated: the car reports its fuel level in whole percent (about half a litre each), never litres, so a short trip's figure is rough. Your average over many trips (Statistics) is much closer.",
         style = TextStyle(color = Muted, fontSize = 11.sp, lineHeight = 15.sp),
         modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp),
       )

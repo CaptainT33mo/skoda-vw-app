@@ -33,7 +33,7 @@ object Cars {
     Store.live = false; Store.liveConnected = false; Store.updatedAt = 0L; Store.reportedAt = 0L
     Store.vehicle = Repo.vehicle; Store.telemetry = Repo.telemetry
     Store.trips = emptyList(); Store.events = emptyList(); Store.parked = Parked(); Store.trail = emptyList(); Store.routes = emptyMap(); Store.routeLoading = null; Store.drive = DriveStats()
-    Store.dongle = Dongle(); Store.alertSetup = AlertSetup()
+    Store.dongle = Dongle(); Store.alertSetup = AlertSetup(); Store.odometerFromTrip = false
     Store.pendingDrive = null; Store.detailTrip = null
     Store.tripRange = null; Store.tripResults = emptyList(); Store.tripSearching = false; Store.tripSearchError = null
   }

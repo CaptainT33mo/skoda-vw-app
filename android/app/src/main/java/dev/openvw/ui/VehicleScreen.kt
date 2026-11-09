@@ -70,6 +70,7 @@ fun VehicleScreen(
   onAlerts: (Boolean) -> Unit = {},
   onAlertType: (dev.openvw.data.Alerts.Type, Boolean) -> Unit = { _, _ -> },
   onInstantAlerts: (Boolean) -> Unit = {},
+  onShakeToReport: (Boolean) -> Unit = {},
 ) {
   var tab by remember { mutableStateOf(initialTab) }
   var ownerEditor by remember { mutableStateOf(false) }
@@ -261,6 +262,13 @@ fun VehicleScreen(
       // Privacy mode toggle
       SettingToggle("Privacy mode", "Mask VIN, reg & personal info with mimic data", privacy, onPrivacy)
 
+      SettingsHeader("Help")
+      SettingAction("Report a problem", "Email the developer a diagnostics report. No phone number, email, VIN or locations in it") {
+        dev.openvw.ui.Report.send(ctx)
+      }
+      SettingToggle("Shake to report", "Shake your phone while CarPulse is open to report a problem", Store.shakeToReport, onShakeToReport)
+      SettingAction("App version", "${dev.openvw.ui.Report.appName(ctx)} ${dev.openvw.ui.Report.version(ctx)}", onClick = null)
+
       // settings above save as soon as they change, so sign-out is the only action here
       Box(
         Modifier.padding(start = 16.dp, end = 16.dp, top = 22.dp).fillMaxWidth().height(54.dp).clip(RoundedCornerShape(99.dp)).background(Card)
@@ -393,6 +401,20 @@ private fun SettingToggle(title: String, subtitle: String, checked: Boolean, onC
         uncheckedThumbColor = Muted, uncheckedTrackColor = Card, uncheckedBorderColor = Muted,
       ),
     )
+  }
+}
+
+/** A settings row that does something when tapped ([onClick] null: information only). */
+@Composable
+private fun SettingAction(title: String, subtitle: String, onClick: (() -> Unit)?) {
+  Column(
+    Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp).fillMaxWidth().card(24.dp)
+      .let { if (onClick != null) it.clickable(onClick = onClick) else it }
+      .padding(horizontal = 18.dp, vertical = 14.dp),
+  ) {
+    Text(title, style = TextStyle(color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Bold))
+    Spacer(Modifier.height(2.dp))
+    Text(subtitle, style = TextStyle(color = Muted, fontSize = 12.sp, lineHeight = 16.sp))
   }
 }
 

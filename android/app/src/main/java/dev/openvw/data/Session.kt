@@ -67,6 +67,7 @@ class Session(context: Context) {
   var fuelPrice: Float get() = sp.getFloat("fuelPrice", 0f); set(v) = sp.edit().putFloat("fuelPrice", v).apply()
   /** "" = follow the system theme (default), "dark" / "light" = the owner's override. */
   var themeMode: String get() = s("themeMode"); set(v) = put("themeMode", v)
+  var shakeToReport: Boolean get() = sp.getBoolean("shakeToReport", true); set(v) = sp.edit().putBoolean("shakeToReport", v).apply() // shake the phone: "Report a problem?"
   var privacy: Boolean get() = sp.getBoolean("privacy", false); set(v) = sp.edit().putBoolean("privacy", v).apply()
 
   // Not gated on loginId: the Cerence login has none.

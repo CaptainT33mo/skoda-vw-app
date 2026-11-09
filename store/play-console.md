@@ -65,7 +65,8 @@ Declarations (as submitted). The test for each box: does the app send it **off t
 | Personal info → **User IDs** (account and car identifiers) | Yes | No | No | Required | App functionality, Account management |
 | Personal info → **Phone number** | Yes | No | No | Required | App functionality, Account management |
 | Device or other IDs (random install ID) | Yes | No | No | Required | App functionality |
-| Everything else (address, financial, health, messages, photos, audio, files, calendar, contacts, app activity, web browsing, app info and performance) | No | — | — | — | — |
+| App info and performance → **Crash logs**, **Diagnostics** (only when the user sends "Report a problem" by email, since 1.1.2) | Yes | No | No | **Optional** | Analytics (diagnosing problems) |
+| Everything else (address, financial, health, messages, photos, audio, files, calendar, contacts, app activity, web browsing) | No | — | — | — | — |
 
 Notes:
 - "Not shared": the map-tile and place-name lookups are service providers working for the app, which Play exempts

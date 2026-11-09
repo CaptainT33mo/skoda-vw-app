@@ -17,6 +17,8 @@ import dev.openvw.ui.OpenVWApp
 // FragmentActivity (a ComponentActivity) because the biometric prompt for App lock needs one
 class MainActivity : FragmentActivity() {
   private var stoppedAt = 0L // elapsedRealtime when the app left the screen; 0 = hasn't yet
+  // shake to report a problem, only while CarPulse is on screen (Settings can turn it off)
+  private val shake = dev.openvw.ui.ShakeDetector { if (dev.openvw.data.Store.shakeToReport) dev.openvw.data.Store.reportPrompt = true }
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
@@ -39,6 +41,7 @@ class MainActivity : FragmentActivity() {
     osm.osmdroidBasePath = java.io.File(cacheDir, "osmdroid").apply { mkdirs() }
     osm.osmdroidTileCache = java.io.File(osm.osmdroidBasePath, "tiles").apply { mkdirs() }
     enableEdgeToEdge()
+    preferFastestRefreshRate()
     setContent {
       OpenVWTheme {
         Surface(modifier = Modifier.fillMaxSize(), color = Bg) {
@@ -65,12 +68,34 @@ class MainActivity : FragmentActivity() {
 
   override fun onResume() {
     super.onResume()
+    preferFastestRefreshRate() // a foldable's other screen can have different modes
     if (AppLock.locked) unlock()
+    shake.start(this) // the callback checks the setting, so turning it on or off applies at once
+  }
+
+  override fun onPause() {
+    shake.stop(this)
+    super.onPause()
   }
 
   override fun onStop() {
     super.onStop()
     stoppedAt = SystemClock.elapsedRealtime()
+  }
+
+  /**
+   * Run at the screen's fastest refresh rate (90 / 120 / 144 Hz) instead of the 60 Hz some phones (ColorOS,
+   * OxygenOS, MIUI) give apps that don't ask: picks the display mode with the highest rate at the current
+   * resolution. Android still applies battery saver and the user's own refresh-rate setting on top.
+   */
+  private fun preferFastestRefreshRate() {
+    val d = (if (android.os.Build.VERSION.SDK_INT >= 30) display else @Suppress("DEPRECATION") windowManager.defaultDisplay) ?: return
+    val cur = d.mode
+    val best = d.supportedModes
+      .filter { it.physicalWidth == cur.physicalWidth && it.physicalHeight == cur.physicalHeight }
+      .maxByOrNull { it.refreshRate } ?: return
+    if (window.attributes.preferredDisplayModeId != best.modeId)
+      window.attributes = window.attributes.apply { preferredDisplayModeId = best.modeId }
   }
 
   private fun unlock() = AppLock.authenticate(this, "Unlock CarPulse") { AppLock.locked = false }

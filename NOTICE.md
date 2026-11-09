@@ -8,8 +8,12 @@ open-source project. Its copyright notice is kept in [LICENSE](LICENSE).
   from OpenVW v3.0 (commit `10dca6a`, 20 Oct 2026).
 - **CarPulse** adds Skoda support alongside Volkswagen in one app, the Cerence OTP sign-in, Android Auto, car
   alerts, multiple cars per account, demo mode, App lock, and its own car illustrations drawn in code
-  (`data/CarArt.kt`). The car pictures bundled with OpenVW (carmaker-style renders of unknown licence) are
-  **not** included.
+  (`data/CarArt.kt`).
+- **Car photos**: `android/app/src/main/assets/cars/` (models sold from 2020 on) and `car-images-archive/` (models
+  that left India before 2020, kept out of the app) hold Skoda's and Volkswagen's own pictures of their cars, as
+  published on CarDekho, CarWale and in OpenVW, with the background removed. They belong to Skoda Auto / Volkswagen
+  (and those sites), are not covered by this project's licence, are used only to show owners their own car, and
+  will be removed on request. Cars without a matching picture use CarPulse's drawn illustrations.
 
 ## Trademarks
 

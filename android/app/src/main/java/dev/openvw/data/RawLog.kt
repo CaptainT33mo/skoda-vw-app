@@ -8,7 +8,7 @@ package dev.openvw.data
 object RawLog {
   private val SECRET = Regex(
     "imei|iccid|imsi|msisdn|phone|mobile|sms|email|token|password|secret|registration|regno|plate|licen[cs]e|deviceid|serial|userid|loginid|mail|contact|owner|birth|gender|dob|nickname|licen[cs]|loginvia|" +
-      "address|firstname|lastname|fullname|ownername|username|customer",
+      "address|firstname|lastname|fullname|ownername|username|customer|engineno|enginenum|chassis|invoiceno|policyno|policynum",
     RegexOption.IGNORE_CASE,
   )
   // "vin", "carVin", "VIN_NO" — but not "drivingTime" (case-sensitive on purpose)

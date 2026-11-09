@@ -239,7 +239,7 @@ object WidgetRender {
 
   /** CarPulse's car art for this widget (transparent, with its own shadow), ~[widthPx] wide. */
   private fun carImage(ctx: Context, s: WidgetSnapshot, widthPx: Float = 600f) =
-    CarLook.bitmap(s.colour, widthPx.toInt().coerceIn(160, 900), modelText(s))
+    CarLook.bitmap(ctx, s.colour, widthPx.toInt().coerceIn(160, 900), modelText(s))
 
   private fun drawCar(c: Canvas, car: Bitmap, dst: RectF, @Suppress("UNUSED_PARAMETER") radius: Float) =
     c.drawBitmap(car, null, dst, Paint(Paint.FILTER_BITMAP_FLAG))

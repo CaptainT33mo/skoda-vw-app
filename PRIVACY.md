@@ -19,6 +19,7 @@ can be checked.
 | Car location, trips and their start/end places | Trips, parked location, map | Received from Cerence; place names looked up as below |
 | A random device ID the app creates (not tied to your phone's hardware) | Device registration with the carmaker's server | The carmaker's savwconnect.com server |
 | Speed, fuel level and odometer from your car's head unit (only if you allow it in Android Auto) | Faster live speed on the car screen | Used on your phone only |
+| A diagnostics report: app version, phone model and Android version, the app's recent log and server-call results, and the latest car data it received, with phone number, email, VIN, IMEI, registration number, names, addresses and coordinates removed | Fixing problems, only when you tap **Report a problem** (or shake the phone) and send the email | The developer (playstore@vibhor.tech), by email from your own mail app; you see the email before sending. Until then the log stays on your phone (a small rolling file, deleted on uninstall) |
 
 If you turn on **Car alerts**, the app repeats the same requests about every 15 minutes in the background and
 shows notifications on your phone; nothing extra leaves your phone. **App lock** uses Android's own fingerprint /

@@ -35,6 +35,20 @@ enum class Brand(
       return entries.firstOrNull { b -> b.models.any { all.contains(it) } }
     }
 
+    /**
+     * Fuel tank in litres for the model named in [text] (Indian spec sheets); 50 L when unknown. Telematics reports
+     * fuel only as a percentage, so this turns a % drop into litres (trip mileage, range).
+     */
+    fun tankLitres(text: String): Double = when (model(text)) {
+      "SLAVIA", "VIRTUS", "POLO", "FABIA" -> 45.0
+      "KYLAQ" -> 44.0
+      "KUSHAQ", "TAIGUN", "OCTAVIA", "T-ROC", "TROC" -> 50.0
+      "RAPID", "VENTO" -> 55.0
+      "KODIAQ", "TIGUAN" -> 58.0
+      "SUPERB" -> 66.0
+      else -> 50.0
+    }
+
     /** Model name found in [text] across both brands, upper case, or null. */
     fun model(text: String): String? {
       val up = text.uppercase()

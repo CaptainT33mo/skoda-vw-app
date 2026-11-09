@@ -19,8 +19,9 @@ telematics (OBD) dongle reporting. Both brands share one backend (SAVWIPL), so t
 | Skoda | Tested (Slavia) | Kushaq, Slavia, Kylaq, Kodiaq, Octavia, Superb, Fabia, Rapid |
 | Volkswagen | **Not yet tested.** Built from OpenVW's VW support; the new OTP sign-in hasn't been confirmed on a VW account | Taigun, Virtus, Tiguan, T-Roc, Polo, Vento |
 
-Cars are shown with CarPulse's own illustrations (sedan, SUV or hatchback, in your car's colour), not carmaker
-photos.
+Cars are shown with real pictures of your model, colour, generation and (where it looks different) variant: Skoda
+and Volkswagen models sold in India from 2020 on. Anything without a picture uses CarPulse's own illustration in your
+car's colour.
 
 If you own a VW and try it, please open an issue saying whether sign-in and live data work.
 

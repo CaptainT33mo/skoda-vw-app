@@ -68,6 +68,7 @@ fun OpenVWApp(vm: AppViewModel = dev.openvw.AppGraph.vm(LocalContext.current.app
     Phase.BOOTING, Phase.LOADING -> LoadingScreen()
     Phase.READY -> MainApp(vm)
   }
+  ReportPrompt() // after a shake, on any screen (sign-in problems included)
 }
 
 @Composable
@@ -193,6 +194,7 @@ private fun MainApp(vm: AppViewModel) {
                     onAlerts = { vm.setAlertsOn(it) },
                     onAlertType = { t, on -> vm.setAlertType(t, on) },
                     onInstantAlerts = { vm.setInstantAlerts(it) },
+                    onShakeToReport = { vm.setShakeToReport(it) },
                     onSystemTheme = { follow -> vm.setThemeMode(if (follow) "" else if (dev.openvw.data.Store.dark) "dark" else "light") },
                   )
                   Screen.TRIP_DETAIL -> dev.openvw.data.Store.detailTrip.let { t ->
