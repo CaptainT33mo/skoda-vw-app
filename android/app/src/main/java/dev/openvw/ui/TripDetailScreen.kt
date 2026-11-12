@@ -144,7 +144,7 @@ fun TripDetailScreen(
           listOf("Driving time" to mins(trip.drivingMin), "Max speed" to "${trip.maxSpeed} km/h"),
           listOf("Idle time" to mins(trip.idleMin), "Stopped" to mins(trip.haltMin)),
           listOf("Driver score" to "${trip.score}/100", "Hard brakes" to trip.brakes.toString()),
-          listOf("Odometer start" to km(trip.startOdo), "Odometer end" to km(trip.endOdo)),
+          listOf("Odometer start" to odo(trip.startOdo, trip.odoEstimated), "Odometer end" to odo(trip.endOdo, trip.odoEstimated)),
         )
         rows.forEachIndexed { i, pair ->
           if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(LineSoft))
@@ -286,4 +286,6 @@ private const val ALERT = 0xFFD93A2B.toInt()
 private fun clockOf(epoch: Long) = java.text.SimpleDateFormat("h:mm a", java.util.Locale.ENGLISH).format(java.util.Date(epoch * 1000))
 
 private fun km(v: Double) = if (v > 0) "%.1f km".format(v) else "—"
+/** "18,240 km"; "≈ 18,240 km" when worked out from the owner's reading. */
+private fun odo(v: Double, estimated: Boolean) = if (v > 0) "${if (estimated) "≈ " else ""}%,d km".format(Math.round(v)) else "—"
 private fun mins(v: Int) = if (v >= 60) "${v / 60}h ${v % 60}m" else "$v min"

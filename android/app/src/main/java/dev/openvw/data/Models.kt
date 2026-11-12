@@ -223,6 +223,7 @@ data class Trip(
   val avgSpeed: Int = 0,
   val startOdo: Double = 0.0,
   val endOdo: Double = 0.0,
+  val odoEstimated: Boolean = false, // start/end odometer worked out from the owner's reading (Odometer.fill)
   val startFuelPct: Int = 0,
   val endFuelPct: Int = 0,
   val brakes: Int = 0,

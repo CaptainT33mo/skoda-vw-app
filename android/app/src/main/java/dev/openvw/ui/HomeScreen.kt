@@ -70,7 +70,7 @@ import dev.openvw.theme.Timeline
 import kotlin.math.roundToInt
 
 @Composable
-fun HomeScreen(onGo: (Screen) -> Unit, onOwner: () -> Unit, playKey: Int, onShown: () -> Unit = {}, wide: Boolean = false, onOpenTrip: (dev.openvw.data.Trip) -> Unit = {}, onSelectCar: (String) -> Unit = {}) {
+fun HomeScreen(onGo: (Screen) -> Unit, onOwner: () -> Unit, playKey: Int, onShown: () -> Unit = {}, wide: Boolean = false, onOpenTrip: (dev.openvw.data.Trip) -> Unit = {}, onSelectCar: (String) -> Unit = {}, onSetOdometer: ((Int?) -> Unit)? = null) {
   val tele = Store.telemetry
   val v = Store.vehicle
 
@@ -170,6 +170,14 @@ fun HomeScreen(onGo: (Screen) -> Unit, onOwner: () -> Unit, playKey: Int, onShow
   }
   val odometer: @Composable () -> Unit = {
     val odo = Store.telemetry.odometerKm
+    val src = Store.odoSource
+    // the car sends no odometer at all (once its trips have loaded): the owner can type it in
+    val canEnter = onSetOdometer != null && Store.live && Store.trips.isNotEmpty() &&
+      (src == dev.openvw.data.OdoSource.READING || (src == dev.openvw.data.OdoSource.NONE && odo == null))
+    var editing by remember { mutableStateOf(false) }
+    if (editing && onSetOdometer != null) OdometerDialog(odo.takeIf { src == dev.openvw.data.OdoSource.READING }, onDismiss = { editing = false }) {
+      editing = false; onSetOdometer(it)
+    }
     // roll the drums up from 0 to the real reading, using the same self-test timing as the cluster
     val odoK = easeOutPublic((tv - 0.15f) / 0.85f)
     Row(
@@ -178,15 +186,31 @@ fun HomeScreen(onGo: (Screen) -> Unit, onOwner: () -> Unit, playKey: Int, onShow
         .padding(top = 14.dp)
         .fillMaxWidth()
         .card(24.dp)
+        .clickable(enabled = canEnter) { editing = true }
         .padding(start = 18.dp, end = 16.dp, top = 16.dp, bottom = 16.dp),
       verticalAlignment = Alignment.CenterVertically,
       horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-      Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+      Column(Modifier.weight(1f, fill = false).padding(end = 10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
         Text("ODOMETER", style = TextStyle(color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.6.sp))
-        Text(if (Store.odometerFromTrip) "At the end of your last trip" else "Total distance", style = TextStyle(color = Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold))
+        Text(
+          when {
+            src == dev.openvw.data.OdoSource.LAST_TRIP -> "At the end of your last trip"
+            src == dev.openvw.data.OdoSource.READING -> "Estimated · your reading + trips since"
+            canEnter -> "Your car doesn't share it"
+            else -> "Total distance"
+          },
+          style = TextStyle(color = Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
+        )
+        if (src == dev.openvw.data.OdoSource.READING)
+          Text("Tap to correct", style = TextStyle(color = Accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold))
       }
-      if (odo == null) {
+      if (odo == null && canEnter) {
+        Row(
+          Modifier.clip(RoundedCornerShape(99.dp)).background(Ink).padding(horizontal = 14.dp, vertical = 9.dp),
+          verticalAlignment = Alignment.CenterVertically,
+        ) { Text("Add reading", style = TextStyle(color = Card, fontSize = 13.sp, fontWeight = FontWeight.Bold)) }
+      } else if (odo == null) {
         Text("-- km", style = TextStyle(color = Ink, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold).merge(Tnum))
       } else {
         Row(
@@ -521,4 +545,39 @@ private fun CarName(onSelectCar: (String) -> Unit) {
       }
     }
   }
+}
+
+/** Type in the odometer from the car's dashboard (for cars that don't send it). */
+@Composable
+private fun OdometerDialog(current: Int?, onDismiss: () -> Unit, onSave: (Int?) -> Unit) {
+  var text by remember { mutableStateOf(current?.toString() ?: "") }
+  val value = text.toIntOrNull()
+  val valid = value != null && value in 1..999_999
+  androidx.compose.material3.AlertDialog(
+    onDismissRequest = onDismiss,
+    containerColor = Card,
+    title = { Text("Odometer reading", style = TextStyle(color = Ink, fontSize = 18.sp, fontWeight = FontWeight.Bold)) },
+    text = {
+      Column {
+        Text(
+          "Your car doesn't send its odometer. Type in the total km shown on the dashboard and CarPulse will add each trip on top of it.",
+          style = TextStyle(color = Muted, fontSize = 13.sp, lineHeight = 18.sp),
+        )
+        Spacer(Modifier.height(12.dp))
+        androidx.compose.material3.OutlinedTextField(
+          value = text, onValueChange = { t -> text = t.filter { it.isDigit() }.take(6) },
+          singleLine = true, suffix = { Text(" km") },
+          keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+          isError = text.isNotEmpty() && !valid,
+          colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(focusedBorderColor = Ink, cursorColor = Ink),
+        )
+      }
+    },
+    confirmButton = {
+      androidx.compose.material3.TextButton(enabled = valid, onClick = { onSave(value!!) }) { Text("Save", color = if (valid) Ink else Muted, fontWeight = FontWeight.Bold) }
+    },
+    dismissButton = {
+      androidx.compose.material3.TextButton(onClick = { if (current != null) onSave(null) else onDismiss() }) { Text(if (current != null) "Remove" else "Cancel", color = Muted) }
+    },
+  )
 }

@@ -444,6 +444,45 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
   /** Settings: shaking the phone offers "Report a problem?" (MainActivity listens while the app is on screen). */
   fun setShakeToReport(on: Boolean) { session.shakeToReport = on; Store.shakeToReport = on }
 
+  /** The owner typed in the dashboard odometer (null = forget it). Only for cars that send no reading of their own. */
+  fun setOdometerReading(km: Int?) {
+    if (demo || Store.odoSource == dev.openvw.data.OdoSource.CAR || Store.odoSource == dev.openvw.data.OdoSource.LAST_TRIP) return
+    if (km == null) {
+      session.odoReading = ""
+      Store.odoSource = dev.openvw.data.OdoSource.NONE
+      Store.telemetry = Store.telemetry.copy(odometerKm = null)
+      Store.trips = dev.openvw.data.Odometer.clear(Store.trips)
+      Store.tripResults = dev.openvw.data.Odometer.clear(Store.tripResults)
+      Store.detailTrip = Store.detailTrip?.let { dev.openvw.data.Odometer.clear(listOf(it)).first() }
+      return
+    }
+    session.odoReading = dev.openvw.data.Odometer.Reading(km.toDouble(), System.currentTimeMillis() / 1000).save()
+    Log.d(TAG, "odometer: owner entered a reading")
+    applyOdometerReading()
+  }
+
+  /** For cars that send no odometer: the owner's reading moved on by the trips since, and each trip's estimate. */
+  private fun applyOdometerReading() {
+    if (demo) return
+    val src = Store.odoSource
+    if (src == dev.openvw.data.OdoSource.CAR || src == dev.openvw.data.OdoSource.LAST_TRIP) return
+    val saved = dev.openvw.data.Odometer.Reading.parse(session.odoReading) ?: return
+    val now = dev.openvw.data.Odometer.advance(saved, Store.trips)
+    if (now != saved) session.odoReading = now.save()
+    Store.odoSource = dev.openvw.data.OdoSource.READING
+    Store.telemetry = Store.telemetry.copy(odometerKm = Math.round(now.km).toInt())
+    Store.trips = dev.openvw.data.Odometer.fill(now, Store.trips)
+    Store.tripResults = withReading(Store.tripResults)
+    Store.detailTrip = Store.detailTrip?.let { withReading(listOf(it)).first() }
+  }
+
+  /** [list] with estimated odometer readings, when the owner's reading is in use. */
+  private fun withReading(list: List<Trip>): List<Trip> {
+    if (Store.odoSource != dev.openvw.data.OdoSource.READING || list.isEmpty()) return list
+    val r = dev.openvw.data.Odometer.Reading.parse(session.odoReading) ?: return list
+    return dev.openvw.data.Odometer.fill(r, list)
+  }
+
   /** Instant alerts: keep the live feed open in the background so engine / driving alerts arrive in seconds. */
   fun setInstantAlerts(on: Boolean) {
     val ctx = getApplication<Application>()
@@ -1350,7 +1389,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         "vehicleOdometer", "VehicleOdometer", "totalDistance", "TotalDistance",
       )
       if (odoFromProfile > 0) {
-        Store.odometerFromTrip = false
+        Store.odoSource = dev.openvw.data.OdoSource.CAR
         Store.telemetry = Store.telemetry.copy(odometerKm = odoFromProfile)
       }
       session.vin = vin
@@ -1644,7 +1683,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
       fragments = listOf("odometer", "mileage"),
       excludes = listOf("fuel", "trip", "since", "dtc", "mil", "engine", "avg", "average"),
     ))?.takeIf { it > 0 } // 0 = the dongle can't read it on this car
-    if (liveOdo != null) Store.odometerFromTrip = false
+    if (liveOdo != null) Store.odoSource = dev.openvw.data.OdoSource.CAR
     val odometer = liveOdo ?: old.odometerKm
     // Engine ON/OFF (telemetry.engine), as the official app reads it (CarStatusParser): OFF = parked, whatever the
     // telemetry still says — Speed/EngineSpeed keep their last value from the end of the drive.
@@ -1802,13 +1841,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
       }
       list.sortByDescending { it.epoch }
       Store.trips = list
-      // Some cars (seen on a VW Virtus) send no odometer in their live data, but each trip carries the reading at its
-      // end: show the newest one, marked as such, until (if ever) a live reading arrives.
-      if (Store.telemetry.odometerKm == null || Store.odometerFromTrip)
+      // Some cars send no odometer in their live data, but each trip carries the reading at its end: show the newest
+      // one, marked as such, until (if ever) a live reading arrives.
+      if (Store.odoSource != dev.openvw.data.OdoSource.CAR)
         list.firstOrNull { it.endOdo > 0 }?.let { last ->
-          Store.telemetry = Store.telemetry.copy(odometerKm = last.endOdo.toInt()); Store.odometerFromTrip = true
+          Store.telemetry = Store.telemetry.copy(odometerKm = last.endOdo.toInt()); Store.odoSource = dev.openvw.data.OdoSource.LAST_TRIP
           Log.d(TAG, "odometer: none in live data, using the last trip's end reading")
         }
+      // Others (seen on a 2026 VW Virtus) send none anywhere: the owner's reading plus the trips since
+      applyOdometerReading()
       val real = if (sumFuelL > 0) sumKm / sumFuelL else 0.0
       Store.drive = DriveStats(count, if (count > 0) scoreSum / count else 0, maxSp, idle, brakes, real, totKm, totMin, wTrips, wKm, wMin)
     }
@@ -1995,9 +2036,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
         val sorted = found.values.filter { it.optLong("startTime") in from..to }.sortedByDescending { it.optLong("startTime") }
         // show right away with cached names, then fill in real place names
-        Store.tripResults = sorted.map { toTrip(it, geocode = false) }
+        Store.tripResults = withReading(sorted.map { toTrip(it, geocode = false) })
         Store.tripSearching = false
-        if (sorted.isNotEmpty()) Store.tripResults = sorted.mapIndexed { i, j -> toTrip(j, geocode = i < 40) }
+        if (sorted.isNotEmpty()) Store.tripResults = withReading(sorted.mapIndexed { i, j -> toTrip(j, geocode = i < 40) })
       } catch (e: kotlinx.coroutines.CancellationException) { throw e
       } catch (e: Exception) {
         Store.tripSearchError = e.message ?: "Couldn't load trips"

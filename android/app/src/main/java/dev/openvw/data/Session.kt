@@ -61,6 +61,8 @@ class Session(context: Context) {
   /** The account's car list (JSON array), so the switcher shows before the server answers. */
   var cars: String get() = s("cars"); set(v) = put("cars", v)
   var verified: Boolean get() = sp.getBoolean("verified", false); set(v) = sp.edit().putBoolean("verified", v).apply()
+  /** The odometer the owner typed in, as Odometer.Reading.save(), for cars that send none; "" = not given. */
+  var odoReading: String get() = s(carKey("odoReading")); set(v) = put(carKey("odoReading"), v)
   var paintPick: String get() = s(carKey("paintPick")); set(v) = put(carKey("paintPick"), v)
   var demo: Boolean get() = sp.getBoolean("demo", false); set(v) = sp.edit().putBoolean("demo", v).apply() // showing the sample car
   var brand: String get() = s("brand"); set(v) = put("brand", v) // Brand name; "" = not chosen yet

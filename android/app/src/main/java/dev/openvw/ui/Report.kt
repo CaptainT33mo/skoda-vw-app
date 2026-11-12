@@ -54,7 +54,7 @@ object Report {
       "Car" to listOf(v.model, v.variant, v.modelYear, v.fuelType, v.colour).filter { it.isNotBlank() }.joinToString(" · ").ifBlank { "—" },
       "Cars on account" to Store.cars.size.toString(),
       "Dongle" to "status ${Store.dongle.status.ifBlank { "—" }} · firmware ${v.dongleFirmware.ifBlank { Store.dongle.firmware.ifBlank { "—" } }} · signal ${Store.dongle.signal}",
-      "Now" to "status ${v.status} · live feed ${yn(Store.liveConnected)} · fuel ${Store.telemetry.fuelPct}% · odometer ${Store.telemetry.odometerKm ?: "—"}${if (Store.odometerFromTrip) " (from last trip)" else ""} · battery ${Store.telemetry.batteryV ?: "—"} V",
+      "Now" to "status ${v.status} · live feed ${yn(Store.liveConnected)} · fuel ${Store.telemetry.fuelPct}% · odometer ${Store.telemetry.odometerKm ?: "—"} (${Store.odoSource.name.lowercase()}) · battery ${Store.telemetry.batteryV ?: "—"} V",
       "Trips / events loaded" to "${Store.trips.size} / ${Store.events.size}",
       "Car alerts" to "${yn(Alerts.isOn(ctx))} · instant ${yn(Alerts.instant(ctx) && Store.instantAvailable)} · notifications allowed ${yn(dev.openvw.work.CarNotifications.canPost(ctx))} · battery unrestricted ${yn(pm?.isIgnoringBatteryOptimizations(ctx.packageName) == true)}",
     )

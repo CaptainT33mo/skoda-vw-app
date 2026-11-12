@@ -174,6 +174,7 @@ private fun MainApp(vm: AppViewModel) {
                     wide = twoCol,
                     onOpenTrip = ::openTrip,
                     onSelectCar = { vm.selectCar(it) },
+                    onSetOdometer = if (vm.demo) null else vm::setOdometerReading,
                   )
                   Screen.TRIPS -> TripsScreen(
                     onBack = ::back, onOpenTrip = ::openTrip,

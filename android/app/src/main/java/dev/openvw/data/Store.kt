@@ -19,7 +19,7 @@ object Store {
   var alertsInstant by mutableStateOf(true)  // instant alerts via the background live feed (Alerts.instant)
   var reportPrompt by mutableStateOf(false)     // a shake asked "Report a problem?"
   var shakeToReport by mutableStateOf(true)     // Settings: shake the phone to report a problem
-  var odometerFromTrip by mutableStateOf(false) // the car sends no live odometer: showing the last trip's end reading
+  var odoSource by mutableStateOf(OdoSource.NONE) // where the odometer reading comes from (Odometer.kt)
   var instantAvailable by mutableStateOf(false) // this build declares the Instant alerts service (all builds since 1.1.1)
   var privacy by mutableStateOf(false)        // mask VIN / reg / personal info with mimic data
   var connectedSince by mutableStateOf("") // purchased / ownership date
